@@ -6,4 +6,4 @@
 
 #### 运行
 - `luwakctl start/stop/restart <服务名称>`
-    > 服务名称在`luwakctl.yaml`中配置
+    > 服务名称在`extsvr.yaml`中配置

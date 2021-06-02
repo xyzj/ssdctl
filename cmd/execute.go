@@ -32,7 +32,7 @@ var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Use 'start-stop-daemon' to start a service",
 	Long: `Use 'start-stop-daemon' to start a service process in the background, 
-and the service startup parameters are stored in the 'luwakctl.yaml' file.
+and the service startup parameters are stored in the 'extsvr.yaml' file.
 The pid file stored in /tmp.
 For Example:
 	luwakctl start backend sslrenew	--> Start backend and sslrenew, even if they are not enabled
@@ -76,7 +76,7 @@ var restartCmd = &cobra.Command{
 	Use:   "restart",
 	Short: "Use 'start-stop-daemon' to restart a service",
 	Long: `Use 'start-stop-daemon' to restart a service process in the background, 
-and the service startup parameters are stored in the 'luwakctl.yaml' file.
+and the service startup parameters are stored in the 'extsvr.yaml' file.
 The pid file stored in /tmp.
 For Example:
 	luwakctl restart backend sslrenew	--> Restart backend and sslrenew

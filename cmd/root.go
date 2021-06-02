@@ -27,7 +27,7 @@ import (
 
 var (
 	listSvr  = make(map[string]*serviceParams)
-	yamlfile = filepath.Join(getExecDir(), "luwakctl.yaml")
+	yamlfile = filepath.Join(getExecDir(), "extsvr.yaml")
 )
 
 type serviceParams struct {
@@ -42,7 +42,7 @@ var rootCmd = &cobra.Command{
 	Short: "project luwak service manager",
 	Long: `project luwak micro-services manager.
 You can create,delete,enable,disable,start,stop,restart all services.
-This program use 'luwakctl.yaml' to save the service config.`,
+This program use 'extsvr.yaml' to save the service config.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },

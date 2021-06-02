@@ -124,13 +124,14 @@ For Example:
 				listSvr["sslrenew"] = &serviceParams{
 					Enable: true,
 					Exec:   "/home/xy/bin/sslrenew",
+					Params: []string{"-debug"},
 				}
 				listSvr["frpcall"] = &serviceParams{
 					Enable: true,
 					Exec:   "/home/xy/bin/frp/frpc",
 					Params: []string{"-c=/home/xy/bin/frp/frpc-all.ini"},
 				}
-				listSvr["frpc"] = &serviceParams{
+				listSvr["frpcssh"] = &serviceParams{
 					Enable: true,
 					Exec:   "/home/xy/bin/frp/frpc",
 					Params: []string{"-c=/home/xy/bin/frp/frpc.ini"},
