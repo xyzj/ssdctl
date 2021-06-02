@@ -85,78 +85,6 @@ func initConfig() {
 		}
 	} else {
 		// 初始化一个
-		// 默认启动的
-		listSvr["backend"] = &serviceParams{
-			Enable: true,
-			Exec:   "/opt/bin/backend",
-			Params: []string{"-portable", "-conf=backend.conf", "-http=6819", "-forcehttp"},
-		}
-		listSvr["uas"] = &serviceParams{
-			Enable: true,
-			Exec:   "/opt/bin/uas",
-			Params: []string{"-portable", "-conf=uas.conf", "-http=6820", "-forcehttp"},
-		}
-		listSvr["ecms-mod"] = &serviceParams{
-			Enable: true,
-			Exec:   "/opt/bin/ecms-mod",
-			Params: []string{"-portable", "-conf=ecms.conf", "-http=6821", "-tcp=6828", "-tcpmodule=wlst", "-forcehttp"},
-		}
-		listSvr["task"] = &serviceParams{
-			Enable: true,
-			Exec:   "/opt/bin/task",
-			Params: []string{"-portable", "-conf=task.conf", "-http=6822", "-forcehttp"},
-		}
-		listSvr["logger"] = &serviceParams{
-			Enable: true,
-			Exec:   "/opt/bin/logger",
-			Params: []string{"-portable", "-conf=logger.conf", "-http=6823", "-forcehttp"},
-		}
-		listSvr["msgpush"] = &serviceParams{
-			Enable: true,
-			Exec:   "/opt/bin/msgpush",
-			Params: []string{"-portable", "-conf=msgpush.conf", "-http=6824", "-forcehttp"},
-		}
-		listSvr["asset"] = &serviceParams{
-			Enable: true,
-			Exec:   "/opt/bin/assetmanager",
-			Params: []string{"-portable", "-conf=asset.conf", "-http=6825", "-forcehttp"},
-		}
-		listSvr["gis"] = &serviceParams{
-			Enable: true,
-			Exec:   "/opt/bin/gismanager",
-			Params: []string{"-portable", "-conf=gis.conf", "-http=6826", "-forcehttp"},
-		}
-		listSvr["uiact"] = &serviceParams{
-			Enable: true,
-			Exec:   "/opt/bin/netcore/userinteraction",
-			Params: []string{"--log=/opt/bin/log/userinteraction", "--conf=/opt/bin/conf/userinteraction"},
-		}
-		listSvr["dpwlst"] = &serviceParams{
-			Enable: true,
-			Exec:   "/opt/bin/netcore/dataparser-wlst",
-			Params: []string{"--log=/opt/bin/log/dataparser-wlst", "--conf=/opt/bin/conf/dataparser-wlst"},
-		}
-		listSvr["dm"] = &serviceParams{
-			Enable: true,
-			Exec:   "/opt/bin/netcore/datamaintenance",
-			Params: []string{"--log=/opt/bin/log/datamaintenance", "--conf=/opt/bin/conf/datamaintenance"},
-		}
-		// 默认不起动的
-		listSvr["nboam"] = &serviceParams{
-			Enable: false,
-			Exec:   "/opt/bin/nboam",
-			Params: []string{"-portable", "-conf=nboam.conf", "-http=6835", "-forcehttp"},
-		}
-		listSvr["ftpupg"] = &serviceParams{
-			Enable: false,
-			Exec:   "/opt/bin/ftpupgrade",
-			Params: []string{"-portable", "-conf=ftp.conf", "-http=6829", "-ftp=6830", "-forcehttp"},
-		}
-		listSvr["dpnb"] = &serviceParams{
-			Enable: false,
-			Exec:   "/opt/bin/netcore/dataparser-nbiot",
-			Params: []string{"--log=/opt/bin/log/dataparser-nbiot", "--conf=/opt/bin/conf/dataparser-nbiot"},
-		}
 		saveSvrList()
 	}
 }
@@ -176,4 +104,8 @@ func getExecDir() string {
 		execdir, _ = filepath.Abs(".")
 	}
 	return execdir
+}
+func isExist(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil || os.IsExist(err)
 }

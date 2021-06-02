@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -53,7 +52,6 @@ var createCmd = &cobra.Command{
 				}
 			}(),
 		}
-		println(fmt.Sprintf("%+v", listSvr))
 		saveSvrList()
 		println("service " + name + " create success")
 	},
