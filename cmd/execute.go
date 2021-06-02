@@ -149,7 +149,7 @@ func init() {
 
 func confirmAll(cmd *cobra.Command) []string {
 	if confirm, _ := cmd.Flags().GetBool("yes"); !confirm {
-		println("Please confirm if you want to do this for all services?(y/n)")
+		print("Please confirm if you want to do this for all services?(y/n)")
 		inputreader := bufio.NewReader(os.Stdin)
 		input, _ := inputreader.ReadString('\n')
 		if strings.ToLower(strings.TrimSpace(input)) != "y" {

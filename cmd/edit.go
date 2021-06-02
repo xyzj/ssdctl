@@ -33,7 +33,7 @@ For Example:
 	luwakctl init luwak --> This will create a configuration file with project luwak's micro-services`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if isExist(yamlfile) {
-			println("Are you sure you want to create a new profile? The current configuration file will be deleted and cannot be restored(y/n)")
+			print("Are you sure you want to create a new profile? The current configuration file will be overwritten and cannot be restored(y/n)")
 			inputreader := bufio.NewReader(os.Stdin)
 			input, _ := inputreader.ReadString('\n')
 			if strings.ToLower(strings.TrimSpace(input)) != "y" {
