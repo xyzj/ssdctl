@@ -30,7 +30,9 @@ var configsvrCmd = &cobra.Command{
 	Use:   "configsvr",
 	Short: "Modify the configuration content of the golang service in bulk",
 	Long: `Modify the configuration content of the golang service in bulk, regardless of enabled or disabled services. 
-Submitting in the format of "key=value" will automatically modify the specified items in all "*.conf" files under the specified path.`,
+Submitting in the format of "key=value" will automatically modify the specified items in all "*.conf" files under the specified path.
+For Example:
+	luwakctl configsvr -d conf -v etcd_addr=192.168.50.83 -v etcd_auth=false`,
 	Run: func(cmd *cobra.Command, args []string) {
 		dir, err := cmd.Flags().GetString("dir")
 		if err != nil {

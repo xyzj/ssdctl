@@ -33,7 +33,10 @@ var startCmd = &cobra.Command{
 	Short: "Use 'start-stop-daemon' to start a service",
 	Long: `Use 'start-stop-daemon' to start a service process in the background, 
 and the service startup parameters are stored in the 'luwakctl.yaml' file.
-The pid file stored in /run.`,
+The pid file stored in /tmp.
+For Example:
+	luwakctl start backend sslrenew	--> Start backend and sslrenew, even if they are not enabled
+	luwakctl start all	--> Start all enabled services`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runNames(getNames(cmd, args), true, false)
 	},
@@ -51,7 +54,10 @@ var startallCmd = &cobra.Command{
 var stopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "Use 'start-stop-daemon' to stop a service",
-	Long:  `Use 'start-stop-daemon' to stop a background service process, the pid of the service is recorded in the /run/[name].pid file.`,
+	Long: `Use 'start-stop-daemon' to stop a background service process, the pid of the service is recorded in the /tmp/[name].pid file.
+For Example:
+	luwakctl stop backend sslrenew	--> Stop backend and sslrenew
+	luwakctl stop all	--> Stop all enabled services`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runNames(getNames(cmd, args), false, true)
 	},
@@ -71,7 +77,10 @@ var restartCmd = &cobra.Command{
 	Short: "Use 'start-stop-daemon' to restart a service",
 	Long: `Use 'start-stop-daemon' to restart a service process in the background, 
 and the service startup parameters are stored in the 'luwakctl.yaml' file.
-The pid file stored in /run.`,
+The pid file stored in /tmp.
+For Example:
+	luwakctl restart backend sslrenew	--> Restart backend and sslrenew
+	luwakctl restart all	--> Restart all enabled services`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runNames(getNames(cmd, args), true, true)
 	},
@@ -91,11 +100,11 @@ var statusCmd = &cobra.Command{
 	Short: "View process information",
 	Long:  `View process information`,
 	Run: func(cmd *cobra.Command, args []string) {
-		//ps h -p $(cat /run/backend.pid)
+		//ps h -p $(cat /tmp/backend.pid)
 		var cmdd *exec.Cmd
 		params := []string{"u"}
 		for _, v := range getNames(cmd, args) {
-			cmdd = exec.Command("cat", "/run/"+v+".pid")
+			cmdd = exec.Command("cat", "/tmp/"+v+".pid")
 			if b, _ := cmdd.CombinedOutput(); !bytes.HasPrefix(b, []byte("cat")) {
 				params = append(params, "-p"+strings.ReplaceAll(string(b), "\n", ""))
 			} else {

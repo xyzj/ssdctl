@@ -27,7 +27,10 @@ import (
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize an empty configuration file, or clear the current configuration file",
-	Long:  `Initialize an empty configuration file, or clear the current configuration file`,
+	Long: `Initialize an empty configuration file, or clear the current configuration file
+For Example:
+	luwakctl init 		--> This will create a empty configuration file
+	luwakctl init luwak --> This will create a configuration file with project luwak's micro-services`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if isExist(yamlfile) {
 			println("Are you sure you want to create a new profile? The current configuration file will be deleted and cannot be restored(y/n)")
@@ -152,24 +155,32 @@ var initCmd = &cobra.Command{
 var deleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "Delete a configured service",
-	Long:  `Delete a configured service, the deleted service cannot be restored, but it can be recreated`,
-	Run:   edit,
+	Long: `Delete a configured service, the deleted service cannot be restored, but it can be recreated
+For Example:
+	luwakctl delete backend sslrenew`,
+	Run: edit,
 }
 
 // disableCmd represents the disable command
 var disableCmd = &cobra.Command{
 	Use:   "disable",
 	Short: "Disable a configured service",
-	Long:  `Disable a configured service, The disabled service will NOT be executed when 'start|stop|restart all'`,
-	Run:   edit,
+	Long: `Disable a configured service, The disabled service will NOT be executed when 'start|stop|restart all'
+	For Example:
+		luwakctl disable all	--> Disable all configured services
+		luwakctl disable backend sslrenew	--> Just disable backend and sslrenew`,
+	Run: edit,
 }
 
 // enableCmd represents the enable command
 var enableCmd = &cobra.Command{
 	Use:   "enable",
 	Short: "Enable a configured service",
-	Long:  `Enable a configured service, The enabled service will be executed when 'start|stop|restart all'`,
-	Run:   edit,
+	Long: `Enable a configured service, The enabled service will be executed when 'start|stop|restart all'
+	For Example:
+		luwakctl enable all	--> Enable all configured services
+		luwakctl enable backend sslrenew	--> Just enable backend and sslrenew`,
+	Run: edit,
 }
 
 func edit(cmd *cobra.Command, args []string) {

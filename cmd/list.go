@@ -25,7 +25,11 @@ import (
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all configured services",
-	Long:  `List all configured services, including enabled and disabled.`,
+	Long: `List all configured services, including enabled and disabled.
+For Example:
+	luwakctl list			--> List all
+	luwakctl list enable	--> Just list enabled services
+	luwakctl list disable	--> Just list disabled services`,
 	Run: func(cmd *cobra.Command, args []string) {
 		for k, v := range listSvr {
 			println(fmt.Sprintf("Service:\t%s\n    Exec:\t%s\n    Params:\t%v\n    Enable:\t%v", k, v.Exec, v.Params, v.Enable))

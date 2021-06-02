@@ -25,7 +25,9 @@ import (
 var createCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a new service",
-	Long:  `Create a new service, if the service name already exists, it cannot be created`,
+	Long: `Create a new service, if the service name already exists, it cannot be created
+For Example:
+	luwakctl create -n newsvr -e /opt/bin/newsvr -p "-conf=./newsvr.conf"`,
 	Run: func(cmd *cobra.Command, args []string) {
 		name, _ := cmd.Flags().GetString("name")
 		if strings.TrimSpace(name) == "all" {
