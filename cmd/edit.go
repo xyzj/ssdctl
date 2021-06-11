@@ -76,9 +76,6 @@ func edit(cmd *cobra.Command, args []string) {
 		case "enable":
 			listSvr[name].Enable = true
 			println("service " + name + " enabled")
-		case "init":
-			listSvr = make(map[string]*serviceParams)
-			saveSvrList()
 		}
 	}
 	saveSvrList()

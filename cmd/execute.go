@@ -18,6 +18,7 @@ package cmd
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -104,6 +105,12 @@ var statusCmd = &cobra.Command{
 		var cmdd *exec.Cmd
 		params := []string{"u"}
 		for _, v := range getNames(cmd, args) {
+			vv, ok := listSvr[v]
+			if !ok {
+				continue
+			}
+			println(fmt.Sprintf("Service:\t%s\n    Exec:\t%s\n    Params:\t%v\n    Enable:\t%v", v, vv.Exec, vv.Params, vv.Enable))
+			println("-------")
 			cmdd = exec.Command("cat", "/tmp/"+v+".pid")
 			if b, _ := cmdd.CombinedOutput(); !bytes.HasPrefix(b, []byte("cat")) {
 				params = append(params, "-p"+strings.ReplaceAll(string(b), "\n", ""))
@@ -117,7 +124,7 @@ var statusCmd = &cobra.Command{
 			println(err.Error() + " " + string(b))
 			return
 		}
-		println("\n" + string(b))
+		println(string(b))
 	},
 }
 

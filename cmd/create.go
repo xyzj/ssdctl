@@ -30,12 +30,13 @@ For Example:
 	luwakctl create -n newsvr -e /opt/bin/newsvr -p "-conf=./newsvr.conf"`,
 	Run: func(cmd *cobra.Command, args []string) {
 		name, _ := cmd.Flags().GetString("name")
+		force, _ := cmd.Flags().GetBool("force")
 		if strings.TrimSpace(name) == "all" {
 			println("you can not use this name")
 			return
 		}
 		// 检查重名
-		if _, ok := listSvr[name]; ok {
+		if _, ok := listSvr[name]; ok && !force {
 			println("service " + name + " already exists")
 			return
 		}
@@ -68,6 +69,7 @@ func init() {
 	createCmd.Flags().StringP("exec", "e", "", "Set service execution path")
 	createCmd.MarkFlagRequired("exec")
 	createCmd.Flags().StringSliceP("param", "p", []string{}, `Set the startup configuration parameters of the service, you can set multiple parameters, such as:'--param "a=1" --param "b=2"'`)
+	createCmd.Flags().BoolP("force", "f", false, "force overwrite exist service params")
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
