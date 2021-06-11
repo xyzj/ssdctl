@@ -16,7 +16,6 @@ limitations under the License.
 package main
 
 import (
-	"flag"
 	"fmt"
 
 	cmd "./cmd"
@@ -28,23 +27,17 @@ var (
 	buildDate   = ""
 	platform    = ""
 	author      = "X.Yuan"
-	programName = "Project Luwak micro-services controller"
-)
-var (
-	ver = flag.Bool("version", false, "show the version info")
+	programName = "Background process controller"
 )
 
 func main() {
-	flag.Parse()
-	if *ver {
-		println(fmt.Sprintf("\n%s\r\nVersion:\t%s\r\nGo version:\t%s\r\nBuild date:\t%s\r\nBuild OS:\t%s\r\nCode by:\t%s\r\n",
+	cmd.SetVersion(
+		fmt.Sprintf("\n%s\r\nVersion:\t%s\r\nGo version:\t%s\r\nBuild date:\t%s\r\nBuild OS:\t%s\r\nCode by:\t%s\r\n",
 			programName,
 			version,
 			goVersion,
 			platform,
 			buildDate,
 			author))
-		return
-	}
 	cmd.Execute()
 }
