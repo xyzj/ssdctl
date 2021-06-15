@@ -126,7 +126,7 @@ For Example:
 				}
 			case "hcloud":
 				listSvr["sslrenew"] = &serviceParams{
-					Enable: true,
+					Enable: false,
 					Exec:   "/home/xy/bin/sslrenew",
 					Params: []string{"-debug"},
 				}
