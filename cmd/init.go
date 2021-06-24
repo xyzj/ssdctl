@@ -49,10 +49,6 @@ For Example:
 			switch args[0] {
 			case "luwak":
 				// 默认启动的
-				listSvr["sslrenew"] = &serviceParams{
-					Enable: true,
-					Exec:   "/opt/bin/sslrenew",
-				}
 				listSvr["backend"] = &serviceParams{
 					Enable: true,
 					Exec:   "/opt/bin/backend",
@@ -93,6 +89,11 @@ For Example:
 					Exec:   "/opt/bin/gismanager",
 					Params: []string{"-portable", "-conf=gis.conf", "-http=6826", "-forcehttp"},
 				}
+				listSvr["bsjk"] = &serviceParams{
+					Enable: true,
+					Exec:   "/opt/bin/businessjk",
+					Params: []string{"-portable", "-conf=bsjk.conf", "-http=6827", "-forcehttp"},
+				}
 				listSvr["uiact"] = &serviceParams{
 					Enable: true,
 					Exec:   "/opt/bin/netcore/userinteraction",
@@ -123,6 +124,10 @@ For Example:
 					Enable: false,
 					Exec:   "/opt/bin/netcore/dataparser-nbiot",
 					Params: []string{"--log=/opt/bin/log/dataparser-nbiot", "--conf=/opt/bin/conf/dataparser-nbiot"},
+				}
+				listSvr["sslrenew"] = &serviceParams{
+					Enable: false,
+					Exec:   "/opt/bin/sslrenew",
 				}
 			case "hcloud":
 				listSvr["sslrenew"] = &serviceParams{
