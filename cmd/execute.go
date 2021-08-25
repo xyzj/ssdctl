@@ -39,7 +39,8 @@ For Example:
 	luwakctl start backend sslrenew	--> Start backend and sslrenew, even if they are not enabled
 	luwakctl start all	--> Start all enabled services`,
 	Run: func(cmd *cobra.Command, args []string) {
-		runNames(getNames(cmd, args), true, false)
+		debug, _ := cmd.Flags().GetBool("debug")
+		runNames(getNames(cmd, args), true, false, debug)
 	},
 }
 var startallCmd = &cobra.Command{
@@ -47,7 +48,8 @@ var startallCmd = &cobra.Command{
 	Short: "Start all enabled services",
 	Long:  `Start all enabled services`,
 	Run: func(cmd *cobra.Command, args []string) {
-		runNames(confirmAll(cmd), true, false)
+		debug, _ := cmd.Flags().GetBool("debug")
+		runNames(confirmAll(cmd), true, false, debug)
 	},
 }
 
@@ -60,7 +62,8 @@ For Example:
 	luwakctl stop backend sslrenew	--> Stop backend and sslrenew
 	luwakctl stop all	--> Stop all enabled services`,
 	Run: func(cmd *cobra.Command, args []string) {
-		runNames(getNames(cmd, args), false, true)
+		debug, _ := cmd.Flags().GetBool("debug")
+		runNames(getNames(cmd, args), false, true, debug)
 	},
 }
 var stopallCmd = &cobra.Command{
@@ -68,7 +71,8 @@ var stopallCmd = &cobra.Command{
 	Short: "Stop all enabled services",
 	Long:  `Stop all enabled services`,
 	Run: func(cmd *cobra.Command, args []string) {
-		runNames(confirmAll(cmd), false, true)
+		debug, _ := cmd.Flags().GetBool("debug")
+		runNames(confirmAll(cmd), false, true, debug)
 	},
 }
 
@@ -83,7 +87,8 @@ For Example:
 	luwakctl restart backend sslrenew	--> Restart backend and sslrenew
 	luwakctl restart all	--> Restart all enabled services`,
 	Run: func(cmd *cobra.Command, args []string) {
-		runNames(getNames(cmd, args), true, true)
+		debug, _ := cmd.Flags().GetBool("debug")
+		runNames(getNames(cmd, args), true, true, debug)
 	},
 }
 var restartallCmd = &cobra.Command{
@@ -91,7 +96,8 @@ var restartallCmd = &cobra.Command{
 	Short: "Restart all enabled services",
 	Long:  `Restart all enabled services`,
 	Run: func(cmd *cobra.Command, args []string) {
-		runNames(confirmAll(cmd), true, true)
+		debug, _ := cmd.Flags().GetBool("debug")
+		runNames(confirmAll(cmd), true, true, debug)
 	},
 }
 
@@ -133,7 +139,10 @@ func init() {
 	rootCmd.AddCommand(stopCmd)
 	rootCmd.AddCommand(restartCmd)
 	rootCmd.AddCommand(statusCmd)
-
+	//debug
+	startCmd.Flags().Bool("debug", false, "Show some debug message")
+	stopCmd.Flags().Bool("debug", false, "Show some debug message")
+	restartCmd.Flags().Bool("debug", false, "Show some debug message")
 	// start
 	startCmd.Flags().StringSliceP("name", "n", []string{}, "Select the name of the service to start, you can set multiple parameters, such as: '-n ecms -n nboam'.")
 	// startCmd.MarkFlagRequired("name")
@@ -183,29 +192,33 @@ func getNames(cmd *cobra.Command, args []string) []string {
 	}
 	return names
 }
-func runNames(names []string, start, stop bool) {
+func runNames(names []string, start, stop, debug bool) {
 	for _, name := range names {
 		if svr, ok := listSvr[name]; !ok {
 			println("*** service " + name + " does not exist")
 			continue
 		} else {
 			if stop {
-				stopSvr(name, svr)
+				stopSvr(name, svr, debug)
 				time.Sleep(time.Second)
 			}
 			if start {
-				startSvr(name, svr)
+				startSvr(name, svr, debug)
 				time.Sleep(time.Second)
 			}
 		}
 	}
 }
-func startSvr(name string, svr *serviceParams) {
+func startSvr(name string, svr *serviceParams, debug bool) {
 	dir, _ := filepath.Split(svr.Exec)
-	params := []string{"--start", "--background", "-d", dir, "-m", "-p", "/tmp/" + name + ".pid", "--exec", svr.Exec, "--"}
+	params := []string{"--start", "-d", dir, "--background", "-m", "-p", "/tmp/" + name + ".pid", "--exec", svr.Exec, "--"} // "-d", dir,
+
 	params = append(params, svr.Params...)
 	cmd := exec.Command("start-stop-daemon", params...)
-	cmd.Dir, _ = filepath.Split(svr.Exec)
+	cmd.Dir = dir
+	if debug {
+		println("DEBUG: " + cmd.String())
+	}
 	b, err := cmd.CombinedOutput()
 	if err != nil {
 		println("*** start " + name + " error: " + err.Error() + "\n" + string(b))
@@ -217,10 +230,13 @@ func startSvr(name string, svr *serviceParams) {
 	// }
 }
 
-func stopSvr(name string, svr *serviceParams) {
+func stopSvr(name string, svr *serviceParams, debug bool) {
 	params := []string{"--stop", "-p", "/tmp/" + name + ".pid"}
 	cmd := exec.Command("start-stop-daemon", params...)
-	cmd.Dir, _ = filepath.Split(svr.Exec)
+	// cmd.Dir, _ = filepath.Split(svr.Exec)
+	if debug {
+		println("DEBUG: " + cmd.String())
+	}
 	b, err := cmd.CombinedOutput()
 	if err != nil {
 		println("*** stop " + name + " error: " + err.Error() + "\n" + string(b))

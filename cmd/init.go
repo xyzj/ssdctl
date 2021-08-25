@@ -132,27 +132,33 @@ For Example:
 			case "hcloud":
 				listSvr["sslrenew"] = &serviceParams{
 					Enable: false,
-					Exec:   "/home/xy/bin/sslrenew",
+					Exec:   "/home/xy/xbin/sslrenew",
 					Params: []string{"-debug"},
 				}
 				listSvr["frpcall"] = &serviceParams{
 					Enable: true,
-					Exec:   "/home/xy/bin/frp/frpc",
-					Params: []string{"-c=/home/xy/bin/frp/frpc-all.ini"},
+					Exec:   "/home/xy/xbin/frp/watchfrpc",
+					Params: []string{"/home/xy/bin/frp/frpc-all.ini"},
 				}
 				listSvr["frpcssh"] = &serviceParams{
 					Enable: true,
-					Exec:   "/home/xy/bin/frp/frpc",
-					Params: []string{"-c=/home/xy/bin/frp/frpc.ini"},
-				}
-				listSvr["watchme"] = &serviceParams{
-					Enable: true,
-					Exec:   "/home/xy/bin/frp/watchme",
+					Exec:   "/home/xy/xbin/frp/watchfrpc",
+					Params: []string{"/home/xy/bin/frp/frpc.ini"},
 				}
 				listSvr["hcloud"] = &serviceParams{
 					Enable: true,
-					Exec:   "/home/xy/bin/hcloud",
+					Exec:   "/home/xy/xbin/hcloud",
 					Params: []string{"-conf=/home/xy/bin/hcloud.conf", "-https=2087", "-http=6820"},
+				}
+				listSvr["aria2c"] = &serviceParams{
+					Enable: false,
+					Exec:   "/home/xy/xbin/runaria2c.sh",
+					Params: []string{},
+				}
+				listSvr["filebrowser"] = &serviceParams{
+					Enable: false,
+					Exec:   "/home/xy/xbin/runfilebrowser.sh",
+					Params: []string{},
 				}
 			}
 		}

@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -27,7 +28,7 @@ import (
 
 var (
 	listSvr  = make(map[string]*serviceParams)
-	yamlfile string
+	yamlfile = filepath.Join(getExecDir(), "extsvr.yaml")
 )
 
 type serviceParams struct {
@@ -65,13 +66,15 @@ func init() {
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// rootCmd.Flags().Bool("debug", false, "Show some debug message")
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	p, _ := os.Executable()
-	yamlfile = filepath.Join(p + ".yaml")
+	if path.Base(p) != "luwakctl" {
+		yamlfile = filepath.Join(p + ".yaml")
+	}
 	mycnf := viper.New()
 	mycnf.SetConfigFile(yamlfile)
 	mycnf.SetConfigType("yaml")
