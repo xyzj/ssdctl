@@ -27,11 +27,11 @@ import (
 
 var (
 	listSvr  = make(map[string]*serviceParams)
-	yamlfile = filepath.Join(getExecDir(), "extsvr.yaml")
+	yamlfile string
 )
 
 type serviceParams struct {
-	Enable bool     `yaml:enable`
+	Enable bool     `yaml:"enable"`
 	Exec   string   `yaml:"exec"`
 	Params []string `yaml:"params"`
 }
@@ -70,6 +70,8 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
+	p, _ := os.Executable()
+	yamlfile = filepath.Join(p + ".yaml")
 	mycnf := viper.New()
 	mycnf.SetConfigFile(yamlfile)
 	mycnf.SetConfigType("yaml")
