@@ -52,47 +52,47 @@ For Example:
 				listSvr["backend"] = &serviceParams{
 					Enable: true,
 					Exec:   "/opt/bin/backend",
-					Params: []string{"-portable", "-conf=backend.conf", "-http=6819", "-forcehttp"},
+					Params: []string{"-portable", "-conf=backend.conf", "-http=6819", "-forcehttp=true"},
 				}
 				listSvr["uas"] = &serviceParams{
 					Enable: true,
 					Exec:   "/opt/bin/uas",
-					Params: []string{"-portable", "-conf=uas.conf", "-http=6820", "-forcehttp"},
+					Params: []string{"-portable", "-conf=uas.conf", "-http=6820", "-forcehttp=false"},
 				}
 				listSvr["ecms-mod"] = &serviceParams{
 					Enable: true,
 					Exec:   "/opt/bin/ecms-mod",
-					Params: []string{"-portable", "-conf=ecms.conf", "-http=6821", "-tcp=6828", "-tcpmodule=wlst", "-forcehttp"},
+					Params: []string{"-portable", "-conf=ecms.conf", "-http=6821", "-tcp=6828", "-tcpmodule=wlst", "-forcehttp=false"},
 				}
 				listSvr["task"] = &serviceParams{
 					Enable: true,
 					Exec:   "/opt/bin/task",
-					Params: []string{"-portable", "-conf=task.conf", "-http=6822", "-forcehttp"},
+					Params: []string{"-portable", "-conf=task.conf", "-http=6822", "-forcehttp=false"},
 				}
 				listSvr["logger"] = &serviceParams{
 					Enable: true,
 					Exec:   "/opt/bin/logger",
-					Params: []string{"-portable", "-conf=logger.conf", "-http=6823", "-forcehttp"},
+					Params: []string{"-portable", "-conf=logger.conf", "-http=6823", "-forcehttp=false"},
 				}
 				listSvr["msgpush"] = &serviceParams{
 					Enable: true,
 					Exec:   "/opt/bin/msgpush",
-					Params: []string{"-portable", "-conf=msgpush.conf", "-http=6824", "-forcehttp"},
+					Params: []string{"-portable", "-conf=msgpush.conf", "-http=6824", "-forcehttp=false"},
 				}
 				listSvr["asset"] = &serviceParams{
 					Enable: true,
 					Exec:   "/opt/bin/assetmanager",
-					Params: []string{"-portable", "-conf=asset.conf", "-http=6825", "-forcehttp"},
+					Params: []string{"-portable", "-conf=asset.conf", "-http=6825", "-forcehttp=false"},
 				}
 				listSvr["gis"] = &serviceParams{
 					Enable: true,
 					Exec:   "/opt/bin/gismanager",
-					Params: []string{"-portable", "-conf=gis.conf", "-http=6826", "-forcehttp"},
+					Params: []string{"-portable", "-conf=gis.conf", "-http=6826", "-forcehttp=false"},
 				}
 				listSvr["bsjk"] = &serviceParams{
 					Enable: true,
 					Exec:   "/opt/bin/businessjk",
-					Params: []string{"-portable", "-conf=bsjk.conf", "-http=6827", "-forcehttp"},
+					Params: []string{"-portable", "-conf=bsjk.conf", "-http=6827", "-forcehttp=false"},
 				}
 				listSvr["uiact"] = &serviceParams{
 					Enable: true,
@@ -113,12 +113,12 @@ For Example:
 				listSvr["nboam"] = &serviceParams{
 					Enable: false,
 					Exec:   "/opt/bin/nboam",
-					Params: []string{"-portable", "-conf=nboam.conf", "-http=6835", "-forcehttp"},
+					Params: []string{"-portable", "-conf=nboam.conf", "-http=6835", "-forcehttp=false"},
 				}
 				listSvr["ftpupg"] = &serviceParams{
 					Enable: false,
 					Exec:   "/opt/bin/ftpupgrade",
-					Params: []string{"-portable", "-conf=ftp.conf", "-http=6829", "-ftp=6830", "-forcehttp"},
+					Params: []string{"-portable", "-conf=ftp.conf", "-http=6829", "-ftp=6830", "-forcehttp=false"},
 				}
 				listSvr["dpnb"] = &serviceParams{
 					Enable: false,
