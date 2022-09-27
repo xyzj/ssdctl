@@ -519,6 +519,7 @@ func recv(cli *unixClient) {
 				continue
 			}
 			cli.Send(svrname, stopSvr(svrname, v))
+			time.Sleep(time.Second)
 			cli.Send(svrname, startSvr(svrname, v))
 		case "99":
 			stdlog.System("client ask me to shut down")
