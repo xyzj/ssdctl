@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -225,15 +224,6 @@ var (
 	ver = flag.Bool("version", false, "print version number and exit")
 )
 
-func init() {
-	os.MkdirAll(tools.JoinPathFromHere("log"), 0775)
-	flag.Parse()
-	if *ver {
-		println(version)
-		os.Exit(0)
-	}
-	godaemon.Start()
-}
 func keepSvrRunning() {
 	// 检查所有enable==true && manualStop==false的服务状态
 	svrconf.xrange(func(key string, value *serviceParams) bool {
@@ -342,16 +332,26 @@ func (uc *unixClient) Send(name, s string) {
 // 发送消息格式： fmt.Sprintf("%s",detail)
 // detail: 消息内容
 func main() {
+	os.MkdirAll(tools.JoinPathFromHere("log"), 0775)
+	flag.Parse()
+	if *ver {
+		println(version)
+		os.Exit(0)
+	}
+	godaemon.Start(func() {
+		os.Remove(psock)
+		stdlog.System(fmt.Sprintf("got the signal, shutting down."))
+	})
 	stdlog = logger.NewLogger(tools.JoinPathFromHere("log"), "extsvr", 10, 7)
 	stdlog.System("start listen from unix socket")
-	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGSTOP)
-	go func(c chan os.Signal) {
-		sig := <-c // 监听关闭
-		stdlog.System(fmt.Sprintf("caught signal %s: shutting down.", sig))
-		os.Remove(psock)
-		time.Sleep(time.Millisecond * 300)
-		os.Exit(0)
-	}(sigc)
+	// signal.Notify(sigc, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
+	// go func(c chan os.Signal) {
+	// 	sig := <-c // 监听关闭
+	// 	stdlog.System(fmt.Sprintf("caught signal %s: shutting down.", sig))
+	// 	os.Remove(psock)
+	// 	time.Sleep(time.Millisecond * 300)
+	// 	os.Exit(0)
+	// }(sigc)
 
 	svrconf.readfile()
 	loopfunc.LoopFunc(func(params ...interface{}) {
