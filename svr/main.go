@@ -421,6 +421,7 @@ func recv(cli *unixClient) {
 		// 切割
 		stdlog.Info("<<< " + tools.String(cli.buf[:n]))
 		cli.cache.Write(cli.buf[:n])
+	RECV:
 		s := cli.cache.String()
 		cli.cache.Reset()
 		ss := strings.Split(s, "|")
@@ -440,22 +441,26 @@ func recv(cli *unixClient) {
 		case "1": // 启动
 			if !ok && svrname != "all" {
 				cli.Send(svrname, "unknow server name: "+svrname)
-				continue
+				goto RECV
 			}
 			if svrname == "all" {
 				svrconf.xrange(func(key string, value *serviceParams) bool {
 					if value.Enable {
 						cli.Send(key, startSvr(key, value))
+						time.Sleep(time.Second * 2)
+						cli.Send(key, statusSvr(key, value))
 					}
 					return true
 				})
 			} else {
 				cli.Send(svrname, startSvr(svrname, v))
+				time.Sleep(time.Second * 2)
+				cli.Send(svrname, statusSvr(svrname, v))
 			}
 		case "2": // 停止
 			if !ok && svrname != "all" {
 				cli.Send(svrname, "unknow server name: "+svrname)
-				continue
+				goto RECV
 			}
 			if svrname == "all" {
 				svrconf.xrange(func(key string, value *serviceParams) bool {
@@ -471,7 +476,7 @@ func recv(cli *unixClient) {
 		case "3": // 启用
 			if !ok {
 				cli.Send(svrname, "unknow server name: "+svrname)
-				continue
+				goto RECV
 			}
 			svrconf.setenable(svrname, true)
 			svrconf.savefile()
@@ -479,7 +484,7 @@ func recv(cli *unixClient) {
 		case "4": // 停用
 			if !ok {
 				cli.Send(svrname, "unknow server name: "+svrname)
-				continue
+				goto RECV
 			}
 			svrconf.setenable(svrname, false)
 			svrconf.savefile()
@@ -487,7 +492,7 @@ func recv(cli *unixClient) {
 		case "5": // 状态
 			if !ok {
 				cli.Send(svrname, "unknow server name: "+svrname)
-				continue
+				goto RECV
 			}
 			cli.Send(svrname, statusSvr(svrname, v))
 		case "6": // 删除
@@ -516,14 +521,19 @@ func recv(cli *unixClient) {
 		case "10": // 重启服务
 			if !ok {
 				cli.Send(svrname, "unknow server name: "+svrname)
-				continue
+				goto RECV
 			}
 			cli.Send(svrname, stopSvr(svrname, v))
-			time.Sleep(time.Second)
+			time.Sleep(time.Second * 2)
 			cli.Send(svrname, startSvr(svrname, v))
+			time.Sleep(time.Second * 2)
+			cli.Send(svrname, statusSvr(svrname, v))
 		case "99":
 			stdlog.System("client ask me to shut down")
 			sigc <- syscall.SIGTERM
+		}
+		if len(ss[4:]) >= 5 {
+			goto RECV
 		}
 	}
 }

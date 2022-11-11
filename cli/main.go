@@ -93,7 +93,7 @@ func main() {
 			// conn.SetReadDeadline(time.Now().Add(time.Second * 2))
 			n, err := conn.Read(buf)
 			if err != nil {
-				if err == io.EOF || strings.Contains(err.Error(), net.ErrClosed.Error()) {
+				if err == io.EOF || strings.Contains(err.Error(), net.ErrClosed.Error()) || strings.Contains(err.Error(), "connection reset by peer") {
 					return
 				}
 				println(err.Error())
@@ -102,6 +102,12 @@ func main() {
 			print(tools.String(buf[:n]))
 		}
 	}()
+	if params[0] == "test" {
+		x := buildData(10, params[1], "", "")
+		x = append(x, buildData(10, params[2], "", "")...)
+		x = append(x, buildData(0, "", "", "")...)
+		conn.Write(x)
+	}
 	// 处理命令
 	switch params[0] {
 	case "start":
