@@ -480,7 +480,7 @@ func recv(cli *unixClient) {
 			}
 			svrconf.setenable(svrname, true)
 			svrconf.savefile()
-			cli.Send(svrname, svrname+" set enable")
+			cli.Send(svrname, "=== "+svrname+" set enable")
 		case "4": // 停用
 			if !ok {
 				cli.Send(svrname, "unknow server name: "+svrname)
@@ -488,7 +488,7 @@ func recv(cli *unixClient) {
 			}
 			svrconf.setenable(svrname, false)
 			svrconf.savefile()
-			cli.Send(svrname, svrname+" set disable")
+			cli.Send(svrname, "*** "+svrname+" set disable")
 		case "5": // 状态
 			if !ok {
 				cli.Send(svrname, "unknow server name: "+svrname)
@@ -498,11 +498,11 @@ func recv(cli *unixClient) {
 		case "6": // 删除
 			svrconf.delete(svrname)
 			svrconf.savefile()
-			cli.Send(svrname, svrname+" deleted")
+			cli.Send(svrname, "--- "+svrname+" deleted")
 		case "7": // 新增
 			svrconf.store(svrname, ss[2], strings.Split(ss[3], ",")...)
 			svrconf.savefile()
-			cli.Send(svrname, svrname+" added")
+			cli.Send(svrname, "+++ "+svrname+" added")
 		case "8": // 初始化一个文件
 			svrconf.init()
 			svrconf.savefile()
