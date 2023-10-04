@@ -2,11 +2,11 @@
 
 ver=$(date +%y.%m.%d)
 
-CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$ver" -o luwakctld svr/main.go
-upx luwakctld
+CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$ver" -o extsvrd svr/main.go
+upx extsvrd
 
-CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$ver" -o luwakctl cli/main.go
-upx luwakctl
+CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$ver" -o extsvr cli/main.go
+upx extsvr
 
-scp luwakctld wlstl:/home/shares/archiving/v5release/luwak_linux/programs
-scp luwakctl wlstl:/home/shares/archiving/v5release/luwak_linux/programs
+scp extsvrd wlstl:/home/shares/archiving/v5release/luwak_linux/programs/luwakctld
+scp extsvr wlstl:/home/shares/archiving/v5release/luwak_linux/programs/luwakctl

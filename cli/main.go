@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -10,24 +9,30 @@ import (
 	"sync"
 	"time"
 
-	"github.com/xyzj/gopsu/tools"
+	"github.com/xyzj/gopsu/gocmd"
+	"github.com/xyzj/gopsu/pathtool"
 )
 
 var (
 	sendfmt = "%d|%s|%s|%s|"
-	psock   = tools.JoinPathFromHere("extsvr.sock")
+	psock   = pathtool.JoinPathFromHere("extsvr.sock")
 	version = "0.0.0"
 )
-var (
-	ver  = flag.Bool("version", false, "print version number and exit")
-	help = flag.Bool("help", false, "print help infomation")
-)
 
-func printHelp() {
-	println("Useage:\n\tluwakctl start|stop|enable|disable|status|init|list|restart|create|remove|update [params...]")
+func init() {
+	os.Setenv(fmt.Sprintf("%s_NOT_PARSE_FLAG", strings.ToUpper(pathtool.GetExecNameWithoutExt())), "1")
 }
+
+// var (
+// 	ver  = flag.Bool("version", false, "print version number and exit")
+// 	help = flag.Bool("help", false, "print help infomation")
+// )
+
+//	func printHelp() {
+//		println("Usage:\n\tluwakctl start|stop|enable|disable|status|init|list|restart|create|remove|update [params...]")
+//	}
 func buildData(do int, name, exec, param string) []byte {
-	return tools.Bytes(fmt.Sprintf(sendfmt, do, name, exec, param))
+	return []byte(fmt.Sprintf(sendfmt, do, name, exec, param))
 }
 
 // 接收消息格式： fmt.Sprintf("%d|%s|%s|%s|",do,name,exec,params)
@@ -36,17 +41,104 @@ func buildData(do int, name, exec, param string) []byte {
 // exec: 要执行的文件完整路径（仅新增时有效）
 // params：要执行的参数，多个参数用`，`分割，（仅新增时有效）
 func main() {
-	flag.Parse()
-	if *help || len(os.Args) == 1 {
-		printHelp()
-		return
-	}
+	gocmd.NewProgram(&gocmd.Info{
+		Ver: version,
+	}).AddCommand(&gocmd.Command{
+		Name:     "init",
+		Descript: "init a new extsvr.yaml",
+		RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+			send2svr(os.Args[1:]...)
+			return 0
+		},
+	}).AddCommand(&gocmd.Command{
+		Name:     "shutdown",
+		Descript: "shutdown the extsvr server",
+		RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+			send2svr(os.Args[1:]...)
+			return 0
+		},
+	}).AddCommand(&gocmd.Command{
+		Name:     "start",
+		Descript: "start a program",
+		RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+			send2svr(os.Args[1:]...)
+			return 0
+		},
+	}).AddCommand(&gocmd.Command{
+		Name:     "stop",
+		Descript: "stop the program",
+		RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+			send2svr(os.Args[1:]...)
+			return 0
+		},
+	}).AddCommand(&gocmd.Command{
+		Name:     "restart",
+		Descript: "restart the program",
+		RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+			send2svr(os.Args[1:]...)
+			return 0
+		},
+	}).AddCommand(&gocmd.Command{
+		Name:     "enable",
+		Descript: "set a program to autorun",
+		RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+			send2svr(os.Args[1:]...)
+			return 0
+		},
+	}).AddCommand(&gocmd.Command{
+		Name:     "disable",
+		Descript: "set a program not to autorun",
+		RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+			send2svr(os.Args[1:]...)
+			return 0
+		},
+	}).AddCommand(&gocmd.Command{
+		Name:     "status",
+		Descript: "check the status of a program",
+		RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+			send2svr(os.Args[1:]...)
+			return 0
+		},
+	}).AddCommand(&gocmd.Command{
+		Name:     "remove",
+		Descript: "remove a program config from extsvr.yaml",
+		RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+			send2svr(os.Args[1:]...)
+			return 0
+		},
+	}).AddCommand(&gocmd.Command{
+		Name:     "create",
+		Descript: "add a program config to extsvr.yaml",
+		HelpMsg:  fmt.Sprintf("Usage:\n\t " + os.Args[0] + " create appname execpath param1 param2 ..."),
+		RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+			send2svr(os.Args[1:]...)
+			return 0
+		},
+	}).AddCommand(&gocmd.Command{
+		Name:     "list",
+		Descript: "print extsvr.yaml",
+		RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+			send2svr(os.Args[1:]...)
+			return 0
+		},
+	}).AddCommand(&gocmd.Command{
+		Name:     "update",
+		Descript: "update a program's config to extsvr.yaml",
+		RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+			send2svr(os.Args[1:]...)
+			return 0
+		},
+	}).AddCommand(&gocmd.Command{
+		Name:     "shutdown",
+		Descript: "shutdown the server",
+		RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+			send2svr(os.Args[1:]...)
+			return 0
+		},
+	}).ExecuteRun()
+}
 
-	if *ver {
-		println(version)
-		return
-	}
-	params := os.Args[1:]
+func send2svr(params ...string) {
 	l := len(params)
 	// 先进行一轮参数合法判断
 	switch params[0] {
@@ -61,17 +153,17 @@ func main() {
 		}
 	case "start", "stop", "enable", "disable", "restart":
 		if l < 2 {
-			println("Useage:\n\t luwakctl " + params[0] + " app1 app2 ...")
+			println("Usage:\n\t " + os.Args[0] + " " + params[0] + " app1 app2 ...")
 			return
 		}
 	case "status", "remove":
 		if l < 2 {
-			println("Useage:\n\t luwakctl " + params[0] + " app")
+			println("Usage:\n\t " + os.Args[0] + " " + params[0] + " app")
 			return
 		}
 	case "create":
-		if l < 4 {
-			println("Useage:\n\t luwakctl create appname execpath param1 param2 ...")
+		if l < 3 {
+			println("Usage:\n\t " + os.Args[0] + " create appname execpath param1 param2 ...")
 			return
 		}
 	}
@@ -99,7 +191,7 @@ func main() {
 				println(err.Error())
 				return
 			}
-			print(tools.String(buf[:n]))
+			print(string(buf[:n]))
 		}
 	}()
 	if params[0] == "test" {
@@ -132,7 +224,7 @@ func main() {
 		}
 	case "status":
 		conn.Write(buildData(5, params[1], "", ""))
-	case "remvoe":
+	case "remove":
 		conn.Write(buildData(6, params[1], "", ""))
 	case "create":
 		conn.Write(buildData(7, params[1], params[2], strings.Join(params[3:], " ")))
