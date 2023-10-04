@@ -191,7 +191,7 @@ func send2svr(params ...string) {
 				println(err.Error())
 				return
 			}
-			print(string(buf[:n]))
+			println(string(buf[:n]))
 		}
 	}()
 	if params[0] == "test" {

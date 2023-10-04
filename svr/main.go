@@ -22,10 +22,13 @@ import (
 )
 
 type serviceParams struct {
-	Params     []string `yaml:"params"`
-	Env        []string `yaml:"env"`
-	Exec       string   `yaml:"exec"`
 	Enable     bool     `yaml:"enable"`
+	Exec       string   `yaml:"exec"`
+	Dir        string   `yaml:"dir,omitempty"`
+	Params     []string `yaml:"params"`
+	Replace    []string `yaml:"replace,omitempty"`
+	Env        []string `yaml:"env,omitempty"`
+	Log2file   bool     `yaml:"log2file,omitempty"`
 	manualStop bool     `yaml:"-"`
 }
 
@@ -174,14 +177,58 @@ func keepSvrRunning() {
 }
 func startSvr(name string, svr *serviceParams) string {
 	defer func() { manualstop(name, false) }()
+	parmrepl := strings.NewReplacer()
+	if len(svr.Replace) > 0 {
+		xss := []string{}
+		for _, v := range svr.Replace {
+			if !strings.HasPrefix(v, "$") {
+				continue
+			}
+			ss := strings.Split(v, "=")
+			if len(ss) != 2 {
+				continue
+			}
+			yss := strings.Split(ss[1], " ")
+			cmd := exec.Command(yss[0], yss[1:]...)
+			b, err := cmd.CombinedOutput()
+			if err == nil {
+				xss = append(xss, ss[0], strings.TrimSpace(string(b)))
+			}
+		}
+		if len(xss) > 0 {
+			parmrepl = strings.NewReplacer(xss...)
+		}
+	}
 	msg := ""
-	dir := filepath.Dir(svr.Exec)
-	params := []string{"--start", "-d", dir, "--background", "-m", "-p", "/tmp/" + name + ".pid", "--exec", svr.Exec, "--"} // "-d", dir,
-	params = append(params, svr.Params...)
+	dir := svr.Dir
+	if dir == "" {
+		dir = filepath.Dir(svr.Exec)
+	}
+	params := []string{"--start", "--chdir=" + dir, "--background", "-m", "--pidfile=/tmp/" + name + ".pid"} //, "--output=/tmp/" + name + ".log", "--exec=" + svr.Exec} // "--background"
+	if svr.Log2file {
+		params = append(params, "--output=/tmp/"+name+".log")
+	}
+	params = append(params, "--exec="+svr.Exec)
+	if len(svr.Params) > 0 {
+		params = append(params, "--")
+		if len(svr.Replace) == 0 {
+			params = append(params, svr.Params...)
+		} else {
+			for _, v := range svr.Params {
+				if strings.Contains(v, "$") {
+					params = append(params, parmrepl.Replace(v))
+				} else {
+					params = append(params, v)
+				}
+			}
+		}
+	}
 	cmd := exec.Command("start-stop-daemon", params...)
 	if len(svr.Env) > 0 {
 		cmd.Env = svr.Env
 	}
+	// cmd := exec.Command(svr.Exec, svr.Params...)
+	// cmd.Dir = filepath.Dir(svr.Exec)
 	b, err := cmd.CombinedOutput()
 	if err != nil {
 		msg = "[START]:\n" + name + " error: " + err.Error() + " >> " + string(b)
@@ -197,7 +244,7 @@ func startSvr(name string, svr *serviceParams) string {
 	if len(b) > 0 {
 		msg += "\n|>> " + string(b)
 	}
-	msg += "\n\n"
+	msg += "\n"
 	stdlog.Info(msg)
 	return msg
 }
@@ -222,7 +269,7 @@ func stopSvr(name string, svr *serviceParams) string {
 	if len(b) > 0 {
 		msg += "\n|>> " + string(b)
 	}
-	msg += "\n\n"
+	msg += "\n"
 	stdlog.Warning(msg)
 	return msg
 }
@@ -246,7 +293,7 @@ func psSvr(svr *serviceParams) string {
 	if err != nil {
 		return ""
 	}
-	return "[PS]:\n" + strings.TrimSpace(string(b)) + "\n\n"
+	return "[PS]:\n" + strings.TrimSpace(string(b)) + "\n"
 }
 func svrIsRunning(svr *serviceParams) bool {
 	s := []string{"-C", filepath.Base(svr.Exec), "-o", "cmd="}
@@ -301,8 +348,28 @@ func main() {
 	// }
 
 	gocmd.DefaultProgram(&gocmd.Info{
-		Ver: version,
-	}).OnSignalQuit(func() { os.Remove(psock) }).ExecuteDefault("start")
+		Title: "programs managerment",
+		Ver:   version,
+		Descript: `run based on extsvr.yaml
+extsvr.yaml.sample:
+app1:                    // program name
+  enable: true           // enable autostart and timer check
+  exec: /op/aa           // program exec path
+  dir: /op               // program working dir, default is program's base dir
+  params:                // program args
+    - -q=12
+    - -c=$pubip          // '$public' will be replaced by the replace setting before run
+  env:                   // set the sys env, should be 'key=value' format
+    - https_proxy=http:127.0.0.1:8080
+  replace:               // params replacer, can replace params variable before run, should be 'key=value' format, and key must start with '$'
+    - $pubip=curl -s 4.ipw.cn
+  log2file: true         // save program stdout to /tmp/[program name].log
+
+in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
+	}).OnSignalQuit(func() {
+		os.Remove(psock)
+		time.Sleep(time.Millisecond * 300)
+	}).ExecuteDefault("start")
 	// godaemon.Start(func() {
 	// 	os.Remove(psock)
 	// 	stdlog.System(fmt.Sprintf("got the signal, shutting down."))
