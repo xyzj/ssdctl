@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -40,6 +41,7 @@ var (
 	psock    = pathtool.JoinPathFromHere("extsvr.sock")
 	chktimer = 60
 	version  = "0.0.0"
+	jobLock  = sync.WaitGroup{}
 )
 
 func initconfig() {
@@ -308,6 +310,9 @@ func svrIsRunning(svr *serviceParams) bool {
 	}
 	found := true
 	for _, v := range svr.Params {
+		if strings.Contains(v, "$") {
+			continue
+		}
 		if !strings.Contains(out, v) {
 			found = false
 			break
@@ -391,6 +396,7 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 		tc := time.NewTicker(time.Minute)
 		tc2 := time.NewTicker(time.Second * 13)
 		for {
+			jobLock.Wait()
 			select {
 			case <-tc.C:
 				keepSvrRunning()
@@ -438,8 +444,10 @@ func recv(cli *unixClient) {
 		if err := recover(); err != nil {
 			stdlog.Error(err.(error).Error())
 		}
+		jobLock.Done()
 		cli.conn.Close()
 	}()
+	jobLock.Add(1)
 	for {
 		cli.conn.SetReadDeadline(time.Now().Add(time.Minute))
 		n, err := cli.conn.Read(cli.buf)
@@ -521,11 +529,20 @@ func recv(cli *unixClient) {
 			svrconf.ToFile()
 			cli.Send(svrname, "*** "+svrname+" set disable")
 		case "5": // 状态
-			if !ok {
+			if !ok && svrname != "all" {
 				cli.Send(svrname, "unknow server name: "+svrname)
 				goto RECV
 			}
-			cli.Send(svrname, statusSvr(svrname, v))
+			if svrname == "all" {
+				svrconf.ForEach(func(key string, value *serviceParams) bool {
+					if value.Enable {
+						cli.Send(key, statusSvr(key, value))
+					}
+					return true
+				})
+			} else {
+				cli.Send(svrname, statusSvr(svrname, v))
+			}
 		case "6": // 删除
 			svrconf.DelItem(svrname)
 			svrconf.ToFile()

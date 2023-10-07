@@ -223,7 +223,10 @@ func send2svr(params ...string) {
 			time.Sleep(time.Millisecond * 100)
 		}
 	case "status":
-		conn.Write(buildData(5, params[1], "", ""))
+		for _, v := range params[1:] {
+			conn.Write(buildData(5, v, "", ""))
+			time.Sleep(time.Millisecond * 100)
+		}
 	case "remove":
 		conn.Write(buildData(6, params[1], "", ""))
 	case "create":
