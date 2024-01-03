@@ -10,8 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
-	"syscall"
 	"time"
 
 	"github.com/xyzj/gopsu/config"
@@ -34,119 +32,15 @@ type serviceParams struct {
 }
 
 var (
-	stdlog   logger.Logger
-	svrconf  *config.Formatted[serviceParams] // = mapPS{locker: sync.RWMutex{}, data: make(map[string]*serviceParams), yamlfile: yaml.New(pathtool.JoinPathFromHere("extsvr.yaml"))}
-	sendfmt  = `%20s|%s|`
-	sigc     = make(chan os.Signal, 1)
-	psock    = pathtool.JoinPathFromHere("extsvr.sock")
-	chktimer = 60
-	version  = "0.0.0"
-	jobLock  = sync.WaitGroup{}
+	stdlog        logger.Logger
+	svrconf       *config.Formatted[serviceParams] // = mapPS{locker: sync.RWMutex{}, data: make(map[string]*serviceParams), yamlfile: yaml.New(pathtool.JoinPathFromHere("extsvr.yaml"))}
+	sendfmt       = `%20s|%s|`
+	psock         = pathtool.JoinPathFromHere("extsvrd.sock")
+	chktimer      = 60
+	version       = "0.0.0"
+	chanTCControl = make(chan string, 30)
 )
 
-func initconfig() {
-	svrconf.PutItem("caddy", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/caddy",
-		Params: []string{"run"},
-	})
-	svrconf.PutItem("ttyd", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/ttyd",
-		Params: []string{"-p 7681", "-m 3", "login"},
-	})
-	svrconf.PutItem("backend", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/backend",
-		Params: []string{"-portable", "-conf=backend.conf", "-http=6819", "-forcehttp=true"},
-	})
-	svrconf.PutItem("uas", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/uas",
-		Params: []string{"-portable", "-conf=luwak.conf", "-http=6820", "-forcehttp=false"},
-	})
-	svrconf.PutItem("ecms-mod", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/ecms-mod",
-		Params: []string{"-portable", "-conf=ecms.conf", "-http=6821", "-tcp=6828", "-tcpmodule=wlst", "-forcehttp=false"},
-	})
-	svrconf.PutItem("task", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/task",
-		Params: []string{"-portable", "-conf=luwak.conf", "-http=6822", "-forcehttp=false"},
-	})
-	svrconf.PutItem("event", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/logger",
-		Params: []string{"-portable", "-conf=luwak.conf", "-http=6823", "-forcehttp=false"},
-	})
-	svrconf.PutItem("adc", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/adc",
-		Params: []string{"-portable", "-conf=luwak.conf", "-http=6832", "-forcehttp=false"},
-	})
-	svrconf.PutItem("ccb", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/ccb",
-		Params: []string{"-portable", "-conf=luwak.conf", "-http=6836", "-forcehttp=false"},
-	})
-	svrconf.PutItem("alarm", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/alarmlog",
-		Params: []string{"-portable", "-conf=luwak.conf", "-http=6837", "-forcehttp=false"},
-	})
-	svrconf.PutItem("msgpush", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/msgpush",
-		Params: []string{"-portable", "-conf=luwak.conf", "-http=6824", "-forcehttp=false"},
-	})
-	svrconf.PutItem("bsjk", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/businessjk",
-		Params: []string{"-portable", "-conf=luwak.conf", "-http=6827", "-forcehttp=false"},
-	})
-	svrconf.PutItem("uiact", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/netcore/userinteraction",
-		Params: []string{"--log=/opt/bin/log/userinteraction", "--conf=/opt/bin/conf/userinteraction"},
-	})
-	svrconf.PutItem("dpwlst", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/netcore/dataparser-wlst",
-		Params: []string{"--log=/opt/bin/log/dataparser-wlst", "--conf=/opt/bin/conf/dataparser-wlst"},
-	})
-	svrconf.PutItem("dm", &serviceParams{
-		Enable: true,
-		Exec:   "/opt/bin/netcore/datamaintenance",
-		Params: []string{"--log=/opt/bin/log/datamaintenance", "--conf=/opt/bin/conf/datamaintenance"},
-	})
-	// 默认不起动的
-	svrconf.PutItem("asset", &serviceParams{
-		Enable: false,
-		Exec:   "/opt/bin/assetmanager",
-		Params: []string{"-portable", "-conf=luwak.conf", "-http=6825", "-forcehttp=false"},
-	})
-	svrconf.PutItem("gis", &serviceParams{
-		Enable: false,
-		Exec:   "/opt/bin/gismanager",
-		Params: []string{"-portable", "-conf=luwak.conf", "-http=6826", "-forcehttp=false"},
-	})
-	svrconf.PutItem("nboam", &serviceParams{
-		Enable: false,
-		Exec:   "/opt/bin/nboam",
-		Params: []string{"-portable", "-conf=nboam.conf", "-http=6835", "-forcehttp=false"},
-	})
-	svrconf.PutItem("ftpupg", &serviceParams{
-		Enable: false,
-		Exec:   "/opt/bin/ftpupgrade",
-		Params: []string{"-portable", "-conf=ftp.conf", "-http=6829", "-ftp=6830", "-forcehttp=false"},
-	})
-	svrconf.PutItem("dpnb", &serviceParams{
-		Enable: false,
-		Exec:   "/opt/bin/netcore/dataparser-nbiot",
-		Params: []string{"--log=/opt/bin/log/dataparser-nbiot", "--conf=/opt/bin/conf/dataparser-nbiot"},
-	})
-}
 func manualstop(name string, stop bool) {
 	v, ok := svrconf.GetItem(name)
 	if !ok {
@@ -351,7 +245,6 @@ func main() {
 	// 	println(version)
 	// 	os.Exit(0)
 	// }
-
 	gocmd.DefaultProgram(&gocmd.Info{
 		Title: "programs managerment",
 		Ver:   version,
@@ -371,9 +264,13 @@ app1:                    // program name
   log2file: true         // save program stdout to /tmp/[program name].log
 
 in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
-	}).OnSignalQuit(func() {
+	}).AfterStop(func() {
 		os.Remove(psock)
 		time.Sleep(time.Millisecond * 300)
+	}).BeforeStart(func() {
+		if pathtool.IsExist(psock) {
+			os.Remove(psock)
+		}
 	}).ExecuteDefault("start")
 	// godaemon.Start(func() {
 	// 	os.Remove(psock)
@@ -393,14 +290,22 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 	// println(svrconf.Print())
 	// svrconf.readfile()
 	go loopfunc.LoopFunc(func(params ...interface{}) {
-		tc := time.NewTicker(time.Minute)
-		tc2 := time.NewTicker(time.Second * 13)
+		tcKeep := time.NewTicker(time.Minute)
+		tcSock := time.NewTicker(time.Second * 13)
 		for {
-			jobLock.Wait()
 			select {
-			case <-tc.C:
+			case msg := <-chanTCControl:
+				switch msg {
+				case "stop":
+					tcKeep.Stop()
+					tcSock.Stop()
+				case "start":
+					tcKeep.Reset(time.Minute)
+					tcSock.Reset(time.Second * 13)
+				}
+			case <-tcKeep.C:
 				keepSvrRunning()
-			case <-tc2.C:
+			case <-tcSock.C:
 				if pathtool.IsExist(psock) {
 					continue
 				}
@@ -430,6 +335,7 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 				stdlog.Error("accept error: " + err.Error())
 				continue
 			}
+			chanTCControl <- "stop"
 			go recv(&unixClient{
 				conn:  fd,
 				buf:   make([]byte, 2048),
@@ -444,10 +350,9 @@ func recv(cli *unixClient) {
 		if err := recover(); err != nil {
 			stdlog.Error(err.(error).Error())
 		}
-		jobLock.Done()
+		chanTCControl <- "start"
 		cli.conn.Close()
 	}()
-	jobLock.Add(1)
 	for {
 		cli.conn.SetReadDeadline(time.Now().Add(time.Minute))
 		n, err := cli.conn.Read(cli.buf)
@@ -553,9 +458,7 @@ func recv(cli *unixClient) {
 			svrconf.ToFile()
 			cli.Send(svrname, "+++ "+svrname+" added")
 		case "8": // 初始化一个文件
-			initconfig()
-			svrconf.ToFile()
-			cli.Send(svrname, "config file init done")
+			cli.Send(svrname, "use settingtools instead")
 		case "9", "98": // list,update
 			if svrdo == "98" {
 				svrconf.FromFile("")
@@ -573,7 +476,7 @@ func recv(cli *unixClient) {
 			cli.Send(svrname, statusSvr(svrname, v))
 		case "99":
 			stdlog.System("client ask me to shut down")
-			sigc <- syscall.SIGTERM
+			// gocmd.SendSignalQuit()
 		}
 		if len(ss[4:]) >= 5 {
 			goto RECV
