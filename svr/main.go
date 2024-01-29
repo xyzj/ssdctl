@@ -32,11 +32,11 @@ type serviceParams struct {
 }
 
 var (
-	stdlog        logger.Logger
-	svrconf       *config.Formatted[serviceParams] // = mapPS{locker: sync.RWMutex{}, data: make(map[string]*serviceParams), yamlfile: yaml.New(pathtool.JoinPathFromHere("extsvr.yaml"))}
-	sendfmt       = `%20s|%s|`
-	psock         = pathtool.JoinPathFromHere("extsvrd.sock")
-	chktimer      = 60
+	stdlog  logger.Logger
+	svrconf *config.Formatted[serviceParams] // = mapPS{locker: sync.RWMutex{}, data: make(map[string]*serviceParams), yamlfile: yaml.New(pathtool.JoinPathFromHere("extsvr.yaml"))}
+	// sendfmt       = `%20s|%s|`
+	psock = pathtool.JoinPathFromHere("extsvrd.sock")
+	// chktimer      = 60
 	version       = "0.0.0"
 	chanTCControl = make(chan string, 30)
 )
@@ -287,6 +287,14 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 	// 	os.Exit(0)
 	// }(sigc)
 	svrconf = config.NewFormatFile[serviceParams](pathtool.JoinPathFromHere("extsvr.yaml"), config.YAML)
+	if !svrconf.Has("ttyd") && pathtool.IsExist(pathtool.JoinPathFromHere("ttyd")) { // 自动添加一个ttyd服务
+		svrconf.PutItem("ttyd", &serviceParams{
+			Exec:    pathtool.JoinPathFromHere("ttyd"),
+			Params:  strings.Split("-m7 su $who --login", " "),
+			Replace: []string{"$who=whoami"},
+			Enable:  true})
+		svrconf.ToFile()
+	}
 	// println(svrconf.Print())
 	// svrconf.readfile()
 	go loopfunc.LoopFunc(func(params ...interface{}) {
