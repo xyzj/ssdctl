@@ -145,7 +145,7 @@ func startSvr(name string, svr *serviceParams) string {
 	return msg
 }
 
-func stopSvr(name string, svr *serviceParams) string {
+func stopSvr(name string, _ *serviceParams) string {
 	defer func() { manualstop(name, true) }()
 	pid := ""
 	bb, err := os.ReadFile("/tmp/" + name + ".pid")
@@ -170,7 +170,7 @@ func stopSvr(name string, svr *serviceParams) string {
 	return msg
 }
 
-func statusSvr(name string, svr *serviceParams) string {
+func statusSvr(_ string, svr *serviceParams) string {
 	ss := strings.Builder{}
 	b, err := yaml.Marshal(svr)
 	if err == nil {
