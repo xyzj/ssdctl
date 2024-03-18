@@ -290,7 +290,7 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 	if !svrconf.Has("ttyd") && pathtool.IsExist(pathtool.JoinPathFromHere("ttyd")) { // 自动添加一个ttyd服务
 		svrconf.PutItem("ttyd", &serviceParams{
 			Exec:    pathtool.JoinPathFromHere("ttyd"),
-			Params:  strings.Split("-m7 su $who --login", " "),
+			Params:  strings.Split("-m7 -W su $who --login", " "),
 			Replace: []string{"$who=whoami"},
 			Enable:  true})
 		svrconf.ToFile()
