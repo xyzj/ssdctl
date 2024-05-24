@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -50,9 +49,8 @@ RestartSec=42s
 WantedBy=multi-user.target`
 
 var (
-	stdlog  logger.Logger
-	svrconf *config.Formatted[model.ServiceParams] // = mapPS{locker: sync.RWMutex{}, data: make(map[string]*serviceParams), yamlfile: yaml.New(pathtool.JoinPathFromHere("extsvr.yaml"))}
-	// sendfmt       = `%20s|%s|`
+	stdlog     logger.Logger
+	svrconf    *config.Formatted[model.ServiceParams]
 	psock      = pathtool.JoinPathFromHere("ssdctld.sock")
 	confile    = pathtool.JoinPathFromHere("ssdctld.yaml")
 	confileOld = pathtool.JoinPathFromHere("extsvr.yaml")
@@ -63,13 +61,11 @@ var (
 )
 
 type unixClient struct {
-	conn  *net.UnixConn
-	cache bytes.Buffer
-	buf   []byte
+	conn *net.UnixConn
+	buf  []byte
 }
 
 func (uc *unixClient) Send(name, s string) {
-	// s = fmt.Sprintf(sendfmt, name, s)
 	if !strings.HasSuffix(s, "\n") {
 		s += "\n"
 	}
@@ -192,9 +188,9 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 				continue
 			}
 			chanRecv <- &unixClient{
-				conn:  fd,
-				buf:   make([]byte, 2048),
-				cache: bytes.Buffer{},
+				conn: fd,
+				buf:  make([]byte, 2048),
+				// cache: bytes.Buffer{},
 			}
 		}
 	}, "main proc", stdlog.DefaultWriter())
@@ -207,140 +203,141 @@ func recv(cli *unixClient) {
 		}
 		cli.conn.Close()
 	}()
-	cli.conn.SetReadDeadline(time.Now().Add(time.Minute))
-	n, err := cli.conn.Read(cli.buf)
-	if err != nil {
-		if err != io.EOF {
-			stdlog.Error("recv error: " + err.Error())
-		}
-		return
-	}
-	// 切割
-	stdlog.Info("<<< " + string(cli.buf[:n]))
-	cli.cache.Write(cli.buf[:n])
-	todo := &model.ToDo{}
-	todo.FromJSON(cli.cache.Bytes())
-	exe, ok := svrconf.GetItem(todo.Name)
-	switch todo.Do {
-	case model.JobShutdown:
-		stdlog.System("client ask me to shut down")
-		app.Exit(0)
-	case model.JobClose: // 关闭
-		return
-	case model.JobStart: // 启动
-		if !ok && todo.Name != "all" {
-			cli.Send(todo.Name, "unknow server name: "+todo.Name)
+	for {
+		cli.conn.SetReadDeadline(time.Now().Add(time.Minute))
+		n, err := cli.conn.Read(cli.buf)
+		if err != nil {
+			if err != io.EOF {
+				stdlog.Error("recv error: " + err.Error())
+			}
 			return
 		}
-		if todo.Name == "all" {
-			svrconf.ForEach(func(key string, value *model.ServiceParams) bool {
-				if !value.Enable {
+		// 切割
+		stdlog.Info("<<< " + string(cli.buf[:n]))
+		todo := &model.ToDo{}
+		todo.FromJSON(cli.buf[:n])
+		exe, ok := svrconf.GetItem(todo.Name)
+		switch todo.Do {
+		case model.JobShutdown:
+			stdlog.System("client ask me to shut down")
+			app.Exit(0)
+		case model.JobClose: // 关闭
+			return
+		case model.JobStart: // 启动
+			if !ok && todo.Name != "all" {
+				cli.Send(todo.Name, "unknow server name: "+todo.Name)
+				return
+			}
+			if todo.Name == "all" {
+				svrconf.ForEach(func(key string, value *model.ServiceParams) bool {
+					if !value.Enable {
+						return true
+					}
+					cli.Send(key, startSvr(key, value))
+					time.Sleep(time.Second * 2)
+					cli.Send(key, statusSvr(key, value))
 					return true
-				}
-				cli.Send(key, startSvr(key, value))
+				})
+			} else {
+				cli.Send(todo.Name, startSvr(todo.Name, exe))
 				time.Sleep(time.Second * 2)
-				cli.Send(key, statusSvr(key, value))
-				return true
-			})
-		} else {
-			cli.Send(todo.Name, startSvr(todo.Name, exe))
-			time.Sleep(time.Second * 2)
-			cli.Send(todo.Name, statusSvr(todo.Name, exe))
-		}
-	case model.JobStop: // 停止
-		if !ok && todo.Name != "all" {
-			cli.Send(todo.Name, "unknow server name: "+todo.Name)
-			return
-		}
-		if todo.Name == "all" {
-			svrconf.ForEach(func(key string, value *model.ServiceParams) bool {
-				if key == "ttyd" || key == "caddy" {
+				cli.Send(todo.Name, statusSvr(todo.Name, exe))
+			}
+		case model.JobStop: // 停止
+			if !ok && todo.Name != "all" {
+				cli.Send(todo.Name, "unknow server name: "+todo.Name)
+				return
+			}
+			if todo.Name == "all" {
+				svrconf.ForEach(func(key string, value *model.ServiceParams) bool {
+					if key == "ttyd" || key == "caddy" {
+						return true
+					}
+					cli.Send(key, stopSvr(key, value))
 					return true
-				}
-				cli.Send(key, stopSvr(key, value))
-				return true
-			})
-		} else {
-			cli.Send(todo.Name, stopSvr(todo.Name, exe))
-		}
-	case model.JobRestart: // 重启
-		if !ok && todo.Name != "all" {
-			cli.Send(todo.Name, "unknow server name: "+todo.Name)
-			return
-		}
-		if todo.Name == "all" {
-			svrconf.ForEach(func(key string, value *model.ServiceParams) bool {
-				if key == "ttyd" || key == "caddy" {
+				})
+			} else {
+				cli.Send(todo.Name, stopSvr(todo.Name, exe))
+			}
+		case model.JobRestart: // 重启
+			if !ok && todo.Name != "all" {
+				cli.Send(todo.Name, "unknow server name: "+todo.Name)
+				return
+			}
+			if todo.Name == "all" {
+				svrconf.ForEach(func(key string, value *model.ServiceParams) bool {
+					if key == "ttyd" || key == "caddy" {
+						return true
+					}
+					cli.Send(todo.Name, stopSvr(todo.Name, exe))
+					time.Sleep(time.Second * 2)
+					cli.Send(todo.Name, startSvr(todo.Name, exe))
+					time.Sleep(time.Second * 2)
+					cli.Send(todo.Name, statusSvr(todo.Name, exe))
 					return true
-				}
+				})
+			} else {
 				cli.Send(todo.Name, stopSvr(todo.Name, exe))
 				time.Sleep(time.Second * 2)
 				cli.Send(todo.Name, startSvr(todo.Name, exe))
 				time.Sleep(time.Second * 2)
 				cli.Send(todo.Name, statusSvr(todo.Name, exe))
-				return true
+			}
+		case model.JobStatus: // 状态查询
+			if !ok && todo.Name != "all" {
+				cli.Send(todo.Name, "unknow server name: "+todo.Name)
+				return
+			}
+			if todo.Name == "all" {
+				svrconf.ForEach(func(key string, value *model.ServiceParams) bool {
+					if value.Enable {
+						cli.Send(key, statusSvr(key, value))
+					}
+					return true
+				})
+			} else {
+				cli.Send(todo.Name, statusSvr(todo.Name, exe))
+			}
+		case model.JobEnable: // 启用
+			if !ok {
+				cli.Send(todo.Name, "unknow server name: "+todo.Name)
+				return
+			}
+			exe.Enable = true
+			svrconf.PutItem(todo.Name, exe)
+			svrconf.ToFile()
+			cli.Send(todo.Name, ">>> "+todo.Name+" enabled")
+		case model.JobDisable: // 停用
+			if !ok {
+				cli.Send(todo.Name, "unknow server name: "+todo.Name)
+				return
+			}
+			exe.Enable = false
+			svrconf.PutItem(todo.Name, exe)
+			svrconf.ToFile()
+			cli.Send(todo.Name, ">>> "+todo.Name+" disabled")
+		case model.JobRemove: // 删除服务
+			svrconf.DelItem(todo.Name)
+			svrconf.ToFile()
+			cli.Send(todo.Name, "--- "+todo.Name+" removed")
+		case model.JobCreate: // 新增服务
+			if todo.Name == "all" {
+				cli.Send("all", "can not use 'all' as application's name")
+				return
+			}
+			svrconf.PutItem(todo.Name, &model.ServiceParams{
+				Exec:   todo.Exec,
+				Params: todo.Params,
+				Enable: true,
 			})
-		} else {
-			cli.Send(todo.Name, stopSvr(todo.Name, exe))
-			time.Sleep(time.Second * 2)
-			cli.Send(todo.Name, startSvr(todo.Name, exe))
-			time.Sleep(time.Second * 2)
-			cli.Send(todo.Name, statusSvr(todo.Name, exe))
+			svrconf.ToFile()
+			cli.Send(todo.Name, "+++ "+todo.Name+" added")
+		case model.JobList, model.JobUpate: // 列出所有，刷新
+			if todo.Do == model.JobUpate {
+				svrconf.FromFile(confile)
+			}
+			cli.Send("", svrconf.Print())
 		}
-	case model.JobStatus: // 状态查询
-		if !ok && todo.Name != "all" {
-			cli.Send(todo.Name, "unknow server name: "+todo.Name)
-			return
-		}
-		if todo.Name == "all" {
-			svrconf.ForEach(func(key string, value *model.ServiceParams) bool {
-				if value.Enable {
-					cli.Send(key, statusSvr(key, value))
-				}
-				return true
-			})
-		} else {
-			cli.Send(todo.Name, statusSvr(todo.Name, exe))
-		}
-	case model.JobEnable: // 启用
-		if !ok {
-			cli.Send(todo.Name, "unknow server name: "+todo.Name)
-			return
-		}
-		exe.Enable = true
-		svrconf.PutItem(todo.Name, exe)
-		svrconf.ToFile()
-		cli.Send(todo.Name, ">>> "+todo.Name+" enabled")
-	case model.JobDisable: // 停用
-		if !ok {
-			cli.Send(todo.Name, "unknow server name: "+todo.Name)
-			return
-		}
-		exe.Enable = false
-		svrconf.PutItem(todo.Name, exe)
-		svrconf.ToFile()
-		cli.Send(todo.Name, ">>> "+todo.Name+" disabled")
-	case model.JobRemove: // 删除服务
-		svrconf.DelItem(todo.Name)
-		svrconf.ToFile()
-		cli.Send(todo.Name, "--- "+todo.Name+" removed")
-	case model.JobCreate: // 新增服务
-		if todo.Name == "all" {
-			cli.Send("all", "can not use 'all' as application's name")
-			return
-		}
-		svrconf.PutItem(todo.Name, &model.ServiceParams{
-			Exec:   todo.Exec,
-			Params: todo.Params,
-			Enable: true,
-		})
-		svrconf.ToFile()
-		cli.Send(todo.Name, "+++ "+todo.Name+" added")
-	case model.JobList, model.JobUpate: // 列出所有，刷新
-		if todo.Do == model.JobUpate {
-			svrconf.FromFile(confile)
-		}
-		cli.Send("", svrconf.Print())
 	}
 }
 
