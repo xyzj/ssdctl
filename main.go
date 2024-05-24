@@ -115,7 +115,7 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 				}
 				g, err := user.LookupGroupId(u.Gid)
 				if err == nil {
-					uname = u.Name
+					uname = u.Username
 					ugrp = g.Name
 				}
 				os.WriteFile(pathtool.JoinPathFromHere("ssdctld.service"), []byte(fmt.Sprintf(systemd,
