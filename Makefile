@@ -1,5 +1,5 @@
-BINARY_NAME=extsvrd
-BINARY_NAME_CLIENT=extsvr
+BINARY_NAME=ssdctld
+BINARY_NAME_CLIENT=ssdctl
 MAIN_VER=2.0.0
 
 DIST_LINUX=_dist/${BINARY_NAME}
@@ -30,17 +30,17 @@ release: linux arm64
 # 编译linux 64位版本
 linux: modtidy
 	@echo "building linux amd64 version..."
-	@GOARCH=amd64 GOOS=linux CGO_ENABLED=0 go build -o ${DIST_LINUX} -ldflags=${LDFLAGS} svr/main.go
+	@GOARCH=amd64 GOOS=linux CGO_ENABLED=0 go build -o ${DIST_LINUX} -ldflags=${LDFLAGS} main.go
 	@upx ${DIST_LINUX}
-	@GOARCH=amd64 GOOS=linux CGO_ENABLED=0 go build -o ${DIST_LINUX_CLIENT} -ldflags=${LDFLAGS} cli/main.go
+	@GOARCH=amd64 GOOS=linux CGO_ENABLED=0 go build -o ${DIST_LINUX_CLIENT} -ldflags=${LDFLAGS} cmd/main.go
 	@upx ${DIST_LINUX_CLIENT}
 	@echo "done.\n"
 
 # 编译arm64/aarch64架构版本
 arm64: modtidy
 	@echo "building linux arm64/aarch64 version..."
-	@GOARCH=arm64 GOOS=linux CGO_ENABLED=0 go build -o ${DIST_ARM64} -ldflags=${LDFLAGS} svr/main.go
-	@GOARCH=arm64 GOOS=linux CGO_ENABLED=0 go build -o ${DIST_ARM64_CLIENT} -ldflags=${LDFLAGS} svr/main.go
+	@GOARCH=arm64 GOOS=linux CGO_ENABLED=0 go build -o ${DIST_ARM64} -ldflags=${LDFLAGS} main.go
+	@GOARCH=arm64 GOOS=linux CGO_ENABLED=0 go build -o ${DIST_ARM64_CLIENT} -ldflags=${LDFLAGS} cmd/main.go
 	@echo "done.\n"
 
 # 更新go.mod文件
@@ -55,4 +55,5 @@ modupdate:
 # 清理编译文件
 clean:
 	@rm -fv _dist/${BINARY_NAME}*
+	@rm -fv _dist/${BINARY_NAME_CLIENT}*
 
