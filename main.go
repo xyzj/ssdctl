@@ -113,6 +113,11 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 					uname = u.Uid
 					ugrp = u.Gid
 				}
+				g, err := user.LookupGroupId(u.Gid)
+				if err == nil {
+					uname = u.Name
+					ugrp = g.Name
+				}
 				os.WriteFile(pathtool.JoinPathFromHere("ssdctld.service"), []byte(fmt.Sprintf(systemd,
 					uname, ugrp,
 					pathtool.GetExecDir(),
