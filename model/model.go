@@ -7,16 +7,17 @@ import (
 type ToDo struct {
 	Do     Jobs     `json:"do"`
 	Name   string   `json:"name"`
-	Exec   string   `json:"exec"`
-	Params []string `json:"params"`
+	Exec   string   `json:"exec,omitempty"`
+	Params []string `json:"params,omitempty"`
 }
 
 func (td *ToDo) ToJSON() []byte {
 	b, err := json.Marshal(td)
 	if err != nil {
 		println("command marshal error:" + err.Error())
-		return []byte{}
+		return []byte{10}
 	}
+	b = append(b, 10)
 	return b
 }
 

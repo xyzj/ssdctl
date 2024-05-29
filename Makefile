@@ -1,6 +1,6 @@
 BINARY_NAME=ssdctld
 BINARY_NAME_CLIENT=ssdctl
-MAIN_VER=2.0.0
+MAIN_VER=2.2.0
 
 DIST_LINUX=_dist/${BINARY_NAME}
 DIST_ARM64=_dist/${BINARY_NAME}-arm64
@@ -11,7 +11,7 @@ DATE_VER=`date '+%y%m%d.%H%M%S'`
 GO_VER=`go version | cut -d \  -f 3`
 BUILD_DATE=`date`
 BUILD_OS=`uname -srv`
-LDFLAGS="-s -w -X 'main.goVersion=${GO_VER}' -X 'main.buildDate=${BUILD_DATE}' -X 'main.platform=${BUILD_OS}' -X 'main.version=${MAIN_VER}.${DATE_VER}'"
+LDFLAGS="-s -w -X 'main.version=${MAIN_VER}.${DATE_VER}'"
 
 # GOARCH for linux enable:
 #	"amd64", "arm64", "mips64", "mips64le", "ppc64", "ppc64le", "riscv64", "s390x", "wasm"

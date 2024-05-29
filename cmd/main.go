@@ -184,33 +184,50 @@ func send2svr(params ...string) {
 	// 处理命令
 	switch params[0] {
 	case "start":
-		todo := &model.ToDo{
-			Name: params[1],
-			Do:   model.JobStart,
+		for _, v := range params[1:] {
+			todo := &model.ToDo{
+				Name: v,
+				Do:   model.JobStart,
+			}
+			conn.Write(todo.ToJSON())
+			time.Sleep(time.Millisecond * 200)
 		}
-		conn.Write(todo.ToJSON())
-		time.Sleep(time.Millisecond * 200)
 	case "stop":
-		todo := &model.ToDo{
-			Name: params[1],
-			Do:   model.JobStop,
+		for _, v := range params[1:] {
+			todo := &model.ToDo{
+				Name: v,
+				Do:   model.JobStop,
+			}
+			conn.Write(todo.ToJSON())
+			time.Sleep(time.Millisecond * 200)
 		}
-		conn.Write(todo.ToJSON())
-		time.Sleep(time.Millisecond * 200)
+	case "restart":
+		for _, v := range params[1:] {
+			todo := &model.ToDo{
+				Name: v,
+				Do:   model.JobRestart,
+			}
+			conn.Write(todo.ToJSON())
+			time.Sleep(time.Millisecond * 200)
+		}
 	case "enable":
-		todo := &model.ToDo{
-			Name: params[1],
-			Do:   model.JobEnable,
+		for _, v := range params[1:] {
+			todo := &model.ToDo{
+				Name: v,
+				Do:   model.JobEnable,
+			}
+			conn.Write(todo.ToJSON())
+			time.Sleep(time.Millisecond * 200)
 		}
-		conn.Write(todo.ToJSON())
-		time.Sleep(time.Millisecond * 200)
 	case "disable":
-		todo := &model.ToDo{
-			Name: params[1],
-			Do:   model.JobDisable,
+		for _, v := range params[1:] {
+			todo := &model.ToDo{
+				Name: v,
+				Do:   model.JobDisable,
+			}
+			conn.Write(todo.ToJSON())
+			time.Sleep(time.Millisecond * 200)
 		}
-		conn.Write(todo.ToJSON())
-		time.Sleep(time.Millisecond * 200)
 	case "status":
 		todo := &model.ToDo{
 			Name: params[1],
@@ -237,13 +254,6 @@ func send2svr(params ...string) {
 	case "list":
 		todo := &model.ToDo{
 			Do: model.JobList,
-		}
-		conn.Write(todo.ToJSON())
-		time.Sleep(time.Millisecond * 200)
-	case "restart":
-		todo := &model.ToDo{
-			Name: params[1],
-			Do:   model.JobRestart,
 		}
 		conn.Write(todo.ToJSON())
 		time.Sleep(time.Millisecond * 200)
