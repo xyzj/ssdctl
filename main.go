@@ -52,7 +52,7 @@ var (
 	svrconf    *config.Formatted[model.ServiceParams]
 	exename    = pathtool.GetExecName()
 	psock      = pathtool.JoinPathFromHere("ssdctld.sock")
-	confile    = pathtool.JoinPathFromHere(exename + ".yaml")
+	confile    = pathtool.JoinPathFromHere("ssdctld.yaml")
 	confileOld = pathtool.JoinPathFromHere("extsvr.yaml")
 	logdir     = pathtool.JoinPathFromHere("log")
 
@@ -278,16 +278,36 @@ func recv(cli *unixClient) {
 						if key == "ttyd" || key == "caddy" {
 							return true
 						}
-						cli.Send(todo.Name, stopSvr(todo.Name, exe))
-						time.Sleep(time.Second * 1)
+						s := stopSvr(todo.Name, exe)
+						cli.Send(todo.Name, s)
+						if !strings.Contains(s, "No such process") {
+							i := 7
+							for i > 0 {
+								i--
+								time.Sleep(time.Millisecond * 500)
+								if !svrIsRunning(value) {
+									break
+								}
+							}
+						}
 						cli.Send(todo.Name, startSvr(todo.Name, exe))
 						time.Sleep(time.Second * 2)
 						cli.Send(todo.Name, statusSvr(todo.Name, exe))
 						return true
 					})
 				} else {
-					cli.Send(todo.Name, stopSvr(todo.Name, exe))
-					time.Sleep(time.Second * 1)
+					s := stopSvr(todo.Name, exe)
+					cli.Send(todo.Name, s)
+					if !strings.Contains(s, "No such process") {
+						i := 7
+						for i > 0 {
+							i--
+							time.Sleep(time.Millisecond * 500)
+							if !svrIsRunning(exe) {
+								break
+							}
+						}
+					}
 					cli.Send(todo.Name, startSvr(todo.Name, exe))
 					time.Sleep(time.Second * 2)
 					cli.Send(todo.Name, statusSvr(todo.Name, exe))
@@ -380,7 +400,7 @@ func startSvr(name string, svr *model.ServiceParams) string {
 	if svr.Dir == "" {
 		svr.Dir = filepath.Dir(svr.Exec)
 	}
-	params := []string{"--start", "--chdir=" + svr.Dir, "--background", "-m", "--pidfile=/tmp/" + name + ".pid"} //, "--output=/tmp/" + name + ".log", "--exec=" + svr.Exec} // "--background"
+	params := []string{"--start", "--chdir=" + svr.Dir, "--background", "-m", "--remove-pidfile", "--pidfile=/tmp/" + name + ".pid"} //, "--output=/tmp/" + name + ".log", "--exec=" + svr.Exec} // "--background"
 	if svr.Log2file {
 		params = append(params, "--output=/tmp/"+name+".log")
 	}
@@ -431,8 +451,9 @@ func stopSvr(name string, _ *model.ServiceParams) string {
 	if err == nil {
 		pid = strings.TrimSpace(string(bb))
 	}
+	println("-------------", pid)
 	msg := ""
-	params := []string{"--stop", "-p", "/tmp/" + name + ".pid"}
+	params := []string{"--stop", "--remove-pidfile", "-p", "/tmp/" + name + ".pid"}
 	cmd := exec.Command("start-stop-daemon", params...)
 	b, err := cmd.CombinedOutput()
 	if err != nil {
