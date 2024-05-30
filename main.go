@@ -278,17 +278,14 @@ func recv(cli *unixClient) {
 						if key == "ttyd" || key == "caddy" {
 							return true
 						}
-						s := stopSvr(todo.Name, exe)
-						cli.Send(todo.Name, s)
-						if !strings.Contains(s, "No such process") {
-							i := 7
-							for i > 0 {
-								i--
-								time.Sleep(time.Millisecond * 500)
-								if !svrIsRunning(value) {
-									break
-								}
+						cli.Send(todo.Name, stopSvr(todo.Name, exe))
+						i := 7
+						for i > 0 {
+							i--
+							if !svrIsRunning(value) {
+								break
 							}
+							time.Sleep(time.Millisecond * 500)
 						}
 						cli.Send(todo.Name, startSvr(todo.Name, exe))
 						time.Sleep(time.Second * 2)
@@ -296,17 +293,14 @@ func recv(cli *unixClient) {
 						return true
 					})
 				} else {
-					s := stopSvr(todo.Name, exe)
-					cli.Send(todo.Name, s)
-					if !strings.Contains(s, "No such process") {
-						i := 7
-						for i > 0 {
-							i--
-							time.Sleep(time.Millisecond * 500)
-							if !svrIsRunning(exe) {
-								break
-							}
+					cli.Send(todo.Name, stopSvr(todo.Name, exe))
+					i := 7
+					for i > 0 {
+						i--
+						if !svrIsRunning(exe) {
+							break
 						}
+						time.Sleep(time.Millisecond * 500)
 					}
 					cli.Send(todo.Name, startSvr(todo.Name, exe))
 					time.Sleep(time.Second * 2)
@@ -451,7 +445,6 @@ func stopSvr(name string, _ *model.ServiceParams) string {
 	if err == nil {
 		pid = strings.TrimSpace(string(bb))
 	}
-	println("-------------", pid)
 	msg := ""
 	params := []string{"--stop", "--remove-pidfile", "-p", "/tmp/" + name + ".pid"}
 	cmd := exec.Command("start-stop-daemon", params...)
