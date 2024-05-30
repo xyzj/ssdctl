@@ -23,10 +23,8 @@ import (
 )
 
 var systemd = `# 使用说明:
-# 1. 确保/opt/bin目录下有ssdctl,ssdctld两个服务管理程序
-# 2. 将ssdctld.service复制到/etc/systemd/system目录中(需要管理员权限, 用sudo命令)
-# 3. 执行: sudo systemctl daemon-reload && sudo systemctl start ssdctld
-# 4. 执行: sudo systemctl status ssdctld, 确保状态为running即可
+# 1. copy %s.service to /etc/systemd/system
+# 2. sudo systemctl daemon-reload && sudo systemctl start ssdctld && sudo systemctl enable ssdctld
 
 [Unit]
 Description=services manager daemon
@@ -40,7 +38,7 @@ WorkingDirectory=%s
 ExecStart=%s run
 ExecReload=%s restart
 ExecStop=%s stop
-ExecStopPost=/usr/bin/rm -f %s.sock
+ExecStopPost=/usr/bin/rm -f %s
 Type=simple
 KillMode=none
 Restart=on-failure
@@ -52,8 +50,9 @@ WantedBy=multi-user.target`
 var (
 	stdlog     logger.Logger
 	svrconf    *config.Formatted[model.ServiceParams]
+	exename    = pathtool.GetExecName()
 	psock      = pathtool.JoinPathFromHere("ssdctld.sock")
-	confile    = pathtool.JoinPathFromHere("ssdctld.yaml")
+	confile    = pathtool.JoinPathFromHere(exename + ".yaml")
 	confileOld = pathtool.JoinPathFromHere("extsvr.yaml")
 	logdir     = pathtool.JoinPathFromHere("log")
 
@@ -115,18 +114,19 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 					uname = u.Username
 					ugrp = g.Name
 				}
-				os.WriteFile(pathtool.JoinPathFromHere("ssdctld.service"), []byte(fmt.Sprintf(systemd,
+				os.WriteFile(pathtool.JoinPathFromHere(exename+".service"), []byte(fmt.Sprintf(systemd,
 					uname, ugrp,
+					exename,
 					pathtool.GetExecDir(),
 					pathtool.GetExecFullpath(),
 					pathtool.GetExecFullpath(),
 					pathtool.GetExecFullpath(),
-					pathtool.GetExecFullpath(),
+					psock,
 				)), 0o664)
-				println(`create systemd service file done.
-1. copy "ssdctld.service" to "/etc/systemd/system/"
+				println(fmt.Sprintf(`create systemd service file done.
+1. copy "%s.service" to "/etc/systemd/system/"
 2. run "systemctl daemon-reload" as root
-3. run "systemctl start ssdctld && system enable ssdctld" as root`)
+3. run "systemctl start %s && system enable %s" as root`, exename, exename, exename))
 				return 0
 			},
 		}).
@@ -144,7 +144,7 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 	if os.Getenv("ssdctld_stdlog") == "console" {
 		stdlog = logger.NewConsoleLogger()
 	} else {
-		stdlog = logger.NewLogger(logdir, "ssdctld", 10, 7, false)
+		stdlog = logger.NewLogger(logdir, exename, 10, 7, false)
 	}
 	stdlog.System("start listen from unix socket")
 	svrconf = config.NewFormatFile[model.ServiceParams](confile, config.YAML)
