@@ -115,8 +115,8 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 					ugrp = g.Name
 				}
 				os.WriteFile(pathtool.JoinPathFromHere(exename+".service"), []byte(fmt.Sprintf(systemd,
-					uname, ugrp,
 					exename,
+					uname, ugrp,
 					pathtool.GetExecDir(),
 					pathtool.GetExecFullpath(),
 					pathtool.GetExecFullpath(),
