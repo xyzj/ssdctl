@@ -55,6 +55,7 @@ var (
 	confile    = pathtool.JoinPathFromHere("ssdctld.yaml")
 	confileOld = pathtool.JoinPathFromHere("extsvr.yaml")
 	logdir     = pathtool.JoinPathFromHere("log")
+	piddir     = pathtool.JoinPathFromHere("pids")
 
 	app     *gocmd.Program
 	version = "0.0.0"
@@ -78,6 +79,7 @@ func main() {
 		os.Rename(confileOld, confile)
 	}
 	os.MkdirAll(logdir, 0o775)
+	os.MkdirAll(piddir, 0o775)
 	app = gocmd.DefaultProgram(&gocmd.Info{
 		Title: "programs managerment",
 		Ver:   version,
@@ -144,8 +146,16 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 	if os.Getenv("ssdctld_stdlog") == "console" {
 		stdlog = logger.NewConsoleLogger()
 	} else {
-		stdlog = logger.NewLogger(logdir, exename, 10, 7, false)
+		stdlog = logger.NewLogger(&logger.OptLog{
+			FileDir:      logdir,
+			Filename:     exename,
+			MaxDays:      10,
+			MaxSize:      1024 * 1024 * 500,
+			DelayWrite:   false,
+			CompressFile: false,
+		})
 	}
+
 	stdlog.System("start listen from unix socket")
 	svrconf = config.NewFormatFile[model.ServiceParams](confile, config.YAML)
 	chanRecv := make(chan *unixClient, 10)
@@ -259,7 +269,14 @@ func recv(cli *unixClient) {
 				}
 				if todo.Name == "all" {
 					svrconf.ForEach(func(key string, value *model.ServiceParams) bool {
-						if key == "ttyd" || key == "caddy" {
+						if !value.Enable {
+							return true
+						}
+						if strings.Contains(value.Exec, "ttyd") ||
+							strings.Contains(value.Exec, "caddy") ||
+							strings.Contains(value.Exec, "dragonfly") ||
+							strings.Contains(value.Exec, "stmq") {
+							// if key == "ttyd" || key == "caddy" || key == "df" || key == "stmq" {
 							return true
 						}
 						cli.Send(key, stopSvr(key, value))
@@ -275,7 +292,14 @@ func recv(cli *unixClient) {
 				}
 				if todo.Name == "all" {
 					svrconf.ForEach(func(key string, value *model.ServiceParams) bool {
-						if key == "ttyd" || key == "caddy" {
+						if !value.Enable {
+							return true
+						}
+						if strings.Contains(value.Exec, "ttyd") ||
+							strings.Contains(value.Exec, "caddy") ||
+							strings.Contains(value.Exec, "dragonfly") ||
+							strings.Contains(value.Exec, "stmq") {
+							// if key == "ttyd" || key == "caddy" || key == "df" || key == "stmq" {
 							return true
 						}
 						cli.Send(todo.Name, stopSvr(todo.Name, exe))
@@ -394,7 +418,7 @@ func startSvr(name string, svr *model.ServiceParams) string {
 	if svr.Dir == "" {
 		svr.Dir = filepath.Dir(svr.Exec)
 	}
-	params := []string{"--start", "--chdir=" + svr.Dir, "--background", "-m", "--remove-pidfile", "--pidfile=/tmp/" + name + ".pid"} //, "--output=/tmp/" + name + ".log", "--exec=" + svr.Exec} // "--background"
+	params := []string{"--start", "--chdir=" + svr.Dir, "--background", "-m", "--remove-pidfile", "--pidfile=" + piddir + "/" + name + ".pid"} //, "--output=/tmp/" + name + ".log", "--exec=" + svr.Exec} // "--background"
 	if svr.Log2file {
 		params = append(params, "--output=/tmp/"+name+".log")
 	}
@@ -446,7 +470,7 @@ func stopSvr(name string, _ *model.ServiceParams) string {
 		pid = strings.TrimSpace(string(bb))
 	}
 	msg := ""
-	params := []string{"--stop", "--remove-pidfile", "-p", "/tmp/" + name + ".pid"}
+	params := []string{"--stop", "--remove-pidfile", "-p", piddir + "/" + name + ".pid"}
 	cmd := exec.Command("start-stop-daemon", params...)
 	b, err := cmd.CombinedOutput()
 	if err != nil {

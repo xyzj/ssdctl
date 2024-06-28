@@ -21,8 +21,8 @@ LDFLAGS="-s -w -X 'main.version=${MAIN_VER}.${DATE_VER}'"
 # 编译所有版本，并发布到服务器
 release: linux arm64
 	@echo "copy files to server..."
-	@scp -p ${DIST_LINUX} wlstl:/home/shares/archiving/v5release/luwak_linux/programs/luwakctld
-	@scp -p ${DIST_LINUX_CLIENT} wlstl:/home/shares/archiving/v5release/luwak_linux/programs/luwakctl
+	@scp -p ${DIST_LINUX} wlstl:/home/shares/archiving/v5release/luwak_linux/bin/luwakctld
+	@scp -p ${DIST_LINUX_CLIENT} wlstl:/home/shares/archiving/v5release/luwak_linux/bin/luwakctl
 	@scp -p ${DIST_ARM64} wlstl:/home/shares/archiving/v5release/luwak_arm64/bin/luwakctld
 	@scp -p ${DIST_ARM64_CLIENT} wlstl:/home/shares/archiving/v5release/luwak_arm64/bin/luwakctl
 	@echo "\nall done."
