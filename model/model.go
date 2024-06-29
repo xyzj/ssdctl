@@ -29,13 +29,14 @@ func (td *ToDo) FromJSON(b []byte) {
 }
 
 type ServiceParams struct {
-	Enable     bool     `yaml:"enable"`
-	Exec       string   `yaml:"exec"`
-	Dir        string   `yaml:"dir,omitempty"`
+	Pid        int      `yaml:"-"`
 	Params     []string `yaml:"params"`
 	Replace    []string `yaml:"replace,omitempty"`
 	Env        []string `yaml:"env,omitempty"`
+	Exec       string   `yaml:"exec"`
+	Dir        string   `yaml:"dir,omitempty"`
 	Log2file   bool     `yaml:"log2file,omitempty"`
+	Enable     bool     `yaml:"enable"`
 	ManualStop bool     `yaml:"-"`
 }
 
