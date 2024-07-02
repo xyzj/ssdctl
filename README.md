@@ -1,0 +1,3 @@
+自己用的linux下的进程管理器，类systemctl和supervisor
+
+可检测并恢复进程

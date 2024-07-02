@@ -1,7 +1,7 @@
 package model
 
 import (
-	"github.com/xyzj/gopsu/json"
+	"encoding/json"
 )
 
 type ToDo struct {
