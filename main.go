@@ -420,11 +420,7 @@ func startSvrFork(name string, svr *model.ServiceParams) (string, bool) {
 			parmrepl = strings.NewReplacer(xss...)
 		}
 	}
-	// 设置目录
-	if svr.Dir == "" {
-		svr.Dir = filepath.Dir(svr.Exec)
-	}
-	params := []string{svr.Exec}
+	params := []string{svr.Exec} // 使用syscall时，第一个需要进程名，使用exec.cmd时不需要
 	if len(svr.Params) > 0 {
 		if len(svr.Replace) == 0 {
 			params = append(params, svr.Params...)
@@ -438,14 +434,14 @@ func startSvrFork(name string, svr *model.ServiceParams) (string, bool) {
 			}
 		}
 	}
-	var msg string
-	var f *os.File
-	if svr.Log2file {
-		f, _ = os.OpenFile(filepath.Join(logdir, name+".log"), os.O_CREATE|os.O_WRONLY, 0o664)
+	// 设置目录
+	if svr.Dir == "" {
+		svr.Dir = filepath.Dir(svr.Exec)
 	}
+	// 设置环境变量
 	env := os.Environ()
 	env = append(env, svr.Env...)
-
+	// 开始进程
 	cmd := exec.Command(svr.Exec, params[1:]...)
 	cmd.Dir = svr.Dir
 	cmd.Env = env
@@ -453,14 +449,19 @@ func startSvrFork(name string, svr *model.ServiceParams) (string, bool) {
 		Setpgid: true,
 		// Setsid: true,
 	}
+	// 设置日志输出
+	var f *os.File
+	if svr.Log2file {
+		f, _ = os.OpenFile(filepath.Join(logdir, name+".log"), os.O_CREATE|os.O_WRONLY, 0o664)
+	}
 	if f != nil {
 		cmd.Stdout = f
 		cmd.Stderr = f
 	}
+	// 开始执行
 	err = cmd.Start()
 	if err != nil {
-		msg = "[START] " + name + " error: " + err.Error() + " '" + svr.Exec + "'"
-		return msg, false
+		return "[START] " + name + " error: " + err.Error() + " '" + svr.Exec + "'", false
 	}
 	pid = cmd.Process.Pid
 	go func(pid int) {
@@ -474,8 +475,7 @@ func startSvrFork(name string, svr *model.ServiceParams) (string, bool) {
 	svr.ManualStop = false
 	svr.Pid = pid
 	os.WriteFile(filepath.Join(piddir, name+".pid"), []byte(fmt.Sprintf("%d", pid)), 0o664)
-	msg = "[START] " + name + " done, PID: " + fmt.Sprintf("%d", pid) + "\n[CMD] " + svr.Exec + " " + strings.Join(svr.Params, " ")
-	return msg, true
+	return "[START] " + name + " done, PID: " + fmt.Sprintf("%d", pid) + "\n[CMD] " + svr.Exec + " " + strings.Join(svr.Params, " "), true
 }
 
 func stopSvrFork(name string, svr *model.ServiceParams) string {
@@ -484,11 +484,9 @@ func stopSvrFork(name string, svr *model.ServiceParams) string {
 		return "[STOP] " + name + " is not running"
 	}
 
-	var msg string
 	err := syscall.Kill(pid, syscall.SIGINT)
 	if err != nil {
-		msg = "[STOP] " + name + " error: " + err.Error()
-		return msg
+		return "[STOP] " + name + " error: " + err.Error()
 	}
 	// if svr.Pid == 0 {
 	// 	go func(pid int) {
@@ -507,6 +505,5 @@ GOON:
 	svr.Pid = 0
 	os.Remove(filepath.Join(piddir, name+".pid"))
 	time.Sleep(time.Millisecond * 200)
-	msg = "[STOP] " + name + " done, PID: " + fmt.Sprintf("%d", pid)
-	return msg
+	return "[STOP] " + name + " done, PID: " + fmt.Sprintf("%d", pid)
 }
