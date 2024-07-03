@@ -15,26 +15,31 @@ func (td *ToDo) ToJSON() []byte {
 	b, err := json.Marshal(td)
 	if err != nil {
 		println("command marshal error:" + err.Error())
-		return []byte{10}
+		return []byte{0}
 	}
-	b = append(b, 10)
+	b = append(b, 0)
 	return b
 }
 
-func (td *ToDo) FromJSON(b []byte) {
+func (td *ToDo) FromJSON(b []byte) error {
 	err := json.Unmarshal(b, td)
 	if err != nil {
 		println("command unmarshal error:" + err.Error())
+		return err
 	}
+	return nil
 }
 
 type ServiceParams struct {
 	Pid        int      `yaml:"-"`
+	Priority   uint32   `yaml:"priority"`
+	StartSec   uint32   `yaml:"startsec"`
+	name       string   `yaml:"-"`
+	Exec       string   `yaml:"exec"`
+	Dir        string   `yaml:"dir,omitempty"`
 	Params     []string `yaml:"params"`
 	Replace    []string `yaml:"replace,omitempty"`
 	Env        []string `yaml:"env,omitempty"`
-	Exec       string   `yaml:"exec"`
-	Dir        string   `yaml:"dir,omitempty"`
 	Log2file   bool     `yaml:"log2file,omitempty"`
 	Enable     bool     `yaml:"enable"`
 	ManualStop bool     `yaml:"-"`

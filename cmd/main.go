@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"io"
 	"net"
 	"os"
 	"strings"
@@ -21,7 +19,7 @@ var (
 )
 
 func init() {
-	os.Setenv(fmt.Sprintf("%s_NOT_PARSE_FLAG", strings.ToUpper(pathtool.GetExecNameWithoutExt())), "1")
+	os.Setenv(strings.ToUpper(pathtool.GetExecNameWithoutExt())+"_NOT_PARSE_FLAG", "1")
 }
 
 // 接收消息格式： fmt.Sprintf("%d|%s|%s|%s|",do,name,exec,params)
@@ -92,7 +90,7 @@ func main() {
 		AddCommand(&gocmd.Command{
 			Name:     "create",
 			Descript: "add a program config to extsvr.yaml",
-			HelpMsg:  fmt.Sprintf("Usage:\n\t " + os.Args[0] + " create appname execpath param1 param2 ..."),
+			HelpMsg:  "Usage:\n\t " + os.Args[0] + " create appname execpath param1 param2 ...",
 			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
 				send2svr(os.Args[1:]...)
 				return 0
@@ -114,14 +112,6 @@ func main() {
 				return 0
 			},
 		}).
-		AddCommand(&gocmd.Command{
-			Name:     "shutdown",
-			Descript: "shutdown the server",
-			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
-				send2svr(os.Args[1:]...)
-				return 0
-			},
-		}).
 		ExecuteRun()
 }
 
@@ -129,15 +119,6 @@ func send2svr(params ...string) {
 	l := len(params)
 	// 先进行一轮参数合法判断
 	switch params[0] {
-	case "shutdown":
-		print("Are you sure you want to do this?(y/n)")
-		var choice string
-		if _, err := fmt.Scanf("%s", &choice); err != nil {
-			return
-		}
-		if choice != "y" {
-			return
-		}
 	case "start", "stop", "enable", "disable", "restart":
 		if l < 2 {
 			println("Usage:\n\t " + os.Args[0] + " " + params[0] + " app1 app2 ...")
@@ -172,13 +153,21 @@ func send2svr(params ...string) {
 			// conn.SetReadDeadline(time.Now().Add(time.Second * 2))
 			n, err := conn.Read(buf)
 			if err != nil {
-				if err == io.EOF || strings.Contains(err.Error(), net.ErrClosed.Error()) || strings.Contains(err.Error(), "connection reset by peer") {
+				if strings.Contains(err.Error(), net.ErrClosed.Error()) ||
+					strings.Contains(err.Error(), "connection reset by peer") ||
+					strings.Contains(err.Error(), "EOF") { // err == io.EOF ||
 					return
 				}
 				println(err.Error())
 				return
 			}
-			println(string(buf[:n]))
+			ss := strings.Split(string(buf[:n]), "\x00")
+			for _, s := range ss {
+				if len(s) == 0 {
+					continue
+				}
+				println(s + "\n")
+			}
 		}
 	}()
 	// 处理命令
@@ -205,9 +194,20 @@ func send2svr(params ...string) {
 		for _, v := range params[1:] {
 			todo := &model.ToDo{
 				Name: v,
-				Do:   model.JobRestart,
+				Do:   model.JobStop,
 			}
 			conn.Write(todo.ToJSON())
+			time.Sleep(time.Millisecond * 200)
+			todo = &model.ToDo{
+				Name: v,
+				Do:   model.JobStart,
+			}
+			conn.Write(todo.ToJSON())
+			// todo := &model.ToDo{
+			// 	Name: v,
+			// 	Do:   model.JobRestart,
+			// }
+			// conn.Write(todo.ToJSON())
 			time.Sleep(time.Millisecond * 200)
 		}
 	case "enable":

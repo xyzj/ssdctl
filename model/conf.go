@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -25,20 +26,36 @@ func NewCnf(dir string) *Config {
 	}
 }
 
+func (c *Config) ensureDefault(svr *ServiceParams) *ServiceParams {
+	if !filepath.IsAbs(svr.Exec) {
+		x, err := filepath.Abs(svr.Exec)
+		if err == nil {
+			svr.Exec = x
+		}
+	}
+	if svr.Priority < 1 {
+		svr.Priority = 999
+	}
+	if svr.StartSec < 1 {
+		svr.StartSec = 2
+	}
+	return svr
+}
+
 func (c *Config) FromFiles() {
 	c.locker.Lock()
 	defer c.locker.Unlock()
+	fsd, err := os.ReadDir(c.dir)
+	if err != nil {
+		println(c.dir + " - " + err.Error())
+		return
+	}
 	if c.data == nil {
 		c.data = make(map[string]*ServiceParams)
 	} else {
 		for k := range c.data {
 			delete(c.data, k)
 		}
-	}
-	fsd, err := os.ReadDir(c.dir)
-	if err != nil {
-		println(err.Error())
-		return
 	}
 	for _, fs := range fsd {
 		if fs.IsDir() {
@@ -49,40 +66,33 @@ func (c *Config) FromFiles() {
 		}
 		b, err := os.ReadFile(filepath.Join(c.dir, fs.Name()))
 		if err != nil {
+			println(fs.Name() + " - " + err.Error())
 			continue
 		}
 		s := &ServiceParams{}
 		err = yaml.Unmarshal(b, s)
 		if err != nil {
+			println(fs.Name() + " - " + err.Error())
 			continue
 		}
-		c.data[strings.ReplaceAll(fs.Name(), ".yaml", "")] = s
+		c.data[strings.TrimSuffix(fs.Name(), ".yaml")] = c.ensureDefault(s)
 	}
 }
 
 func (c *Config) AddItem(name string, svr *ServiceParams) error {
-	if !filepath.IsAbs(svr.Exec) {
-		x, err := filepath.Abs(svr.Exec)
-		if err == nil {
-			svr.Exec = x
-		}
-	}
-	if err := c.PutItem(name, svr); err != nil {
-		return err
-	}
-	b, err := yaml.Marshal(svr)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(c.dir, name+".yaml"), b, 0o664)
-}
-
-func (c *Config) PutItem(name string, svr *ServiceParams) error {
 	c.locker.Lock()
 	defer c.locker.Unlock()
 	_, ok := c.data[name]
 	if ok {
 		return fmt.Errorf("service " + name + " already exist")
+	}
+	b, err := yaml.Marshal(c.ensureDefault(svr))
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(filepath.Join(c.dir, name+".yaml"), b, 0o664)
+	if err != nil {
+		return err
 	}
 	c.data[name] = svr
 	return nil
@@ -131,9 +141,20 @@ func (c *Config) SetEnable(name string, enable bool) error {
 
 func (c *Config) ForEach(f func(key string, value *ServiceParams) bool) {
 	c.locker.RLock()
-	defer c.locker.RUnlock()
+	defer func() {
+		recover()
+		c.locker.RUnlock()
+	}()
+	ss := make([]*ServiceParams, 0, len(c.data))
 	for k, v := range c.data {
-		f(k, v)
+		v.name = k
+		ss = append(ss, v)
+	}
+	sort.Slice(ss, func(i, j int) bool {
+		return fmt.Sprintf("%04d%s", ss[i].Priority, ss[i].name) < fmt.Sprintf("%04d%s", ss[j].Priority, ss[j].name)
+	})
+	for _, s := range ss {
+		f(s.name, s)
 	}
 }
 
@@ -163,7 +184,7 @@ func (c *Config) ConverFromOld() {
 		if pathtool.IsExist(sp) {
 			continue
 		}
-		b, err := yaml.Marshal(v)
+		b, err := yaml.Marshal(c.ensureDefault(v))
 		if err != nil {
 			continue
 		}
