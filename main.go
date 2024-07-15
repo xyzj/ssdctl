@@ -158,22 +158,32 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 	allconf = model.NewCnf(cnfdir)
 	allconf.ConverFromOld()
 	allconf.FromFiles()
+
+	chrecv := make(chan *unixClient)
 	// 后台处理
 	if !*nokeepalive {
 		go loopfunc.LoopFunc(func(params ...interface{}) {
+			td := time.Minute
+			t := time.NewTicker(td)
 			for {
-				time.Sleep(time.Minute)
-				// 检查所有enable==true && manualStop==false的服务状态
-				allconf.ForEach(func(key string, value *model.ServiceParams) bool {
-					if !value.Enable || value.ManualStop {
+				select {
+				case <-t.C:
+					// 检查所有enable==true && manualStop==false的服务状态
+					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+						if !value.Enable || value.ManualStop {
+							return true
+						}
+						if _, _, ok := svrIsRunning(value); ok {
+							return true
+						}
+						startSvrFork(key, value)
 						return true
-					}
-					if _, _, ok := svrIsRunning(value); ok {
-						return true
-					}
-					startSvrFork(key, value)
-					return true
-				})
+					})
+				case cli := <-chrecv:
+					t.Stop()
+					recv(cli)
+					t.Reset(td)
+				}
 			}
 		}, "recv", nil) // stdlog.DefaultWriter())
 	}
@@ -195,10 +205,14 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 				}
 				continue
 			}
-			recv(&unixClient{
+			chrecv <- &unixClient{
 				conn: fd,
 				buf:  make([]byte, 2048),
-			})
+			}
+			// recv(&unixClient{
+			// 	conn: fd,
+			// 	buf:  make([]byte, 2048),
+			// })
 		}
 	}, "main proc", nil) // stdlog.DefaultWriter())
 }

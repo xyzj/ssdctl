@@ -31,15 +31,15 @@ func (td *ToDo) FromJSON(b []byte) error {
 }
 
 type ServiceParams struct {
-	Pid        int      `yaml:"-"`
-	Priority   uint32   `yaml:"priority"`
-	StartSec   uint32   `yaml:"startsec"`
 	name       string   `yaml:"-"`
 	Exec       string   `yaml:"exec"`
 	Dir        string   `yaml:"dir,omitempty"`
 	Params     []string `yaml:"params"`
 	Replace    []string `yaml:"replace,omitempty"`
 	Env        []string `yaml:"env,omitempty"`
+	Pid        int      `yaml:"-"`
+	Priority   uint32   `yaml:"priority"`
+	StartSec   uint32   `yaml:"startsec"`
 	Log2file   bool     `yaml:"log2file,omitempty"`
 	Enable     bool     `yaml:"enable"`
 	ManualStop bool     `yaml:"-"`
