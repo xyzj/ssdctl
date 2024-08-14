@@ -132,6 +132,18 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 				return 0
 			},
 		}).
+		AddCommand(&gocmd.Command{
+			Name:     "addpath",
+			Descript: "add `pwd` to PATH env",
+			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+				err := pathtool.AddPathEnvFromHere()
+				if err != nil {
+					println(err.Error())
+					return 1
+				}
+				return 0
+			},
+		}).
 		AfterStop(func() {
 			os.Remove(psock)
 		}).
