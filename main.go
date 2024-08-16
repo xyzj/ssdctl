@@ -141,6 +141,7 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 					println(err.Error())
 					return 1
 				}
+				println("add PATH done")
 				return 0
 			},
 		}).
