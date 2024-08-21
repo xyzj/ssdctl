@@ -400,7 +400,7 @@ func svrIsRunning(svr *model.ServiceParams) (int, string, bool) {
 	for _, p := range pi {
 		found = true
 		for _, parm := range svr.Params {
-			if strings.HasPrefix(parm, "$") {
+			if strings.Contains(parm, "$") {
 				continue
 			}
 			if !strings.Contains(p.CmdLine, parm) {
