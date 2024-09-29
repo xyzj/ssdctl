@@ -490,14 +490,18 @@ func startSvrFork(name string, svr *model.ServiceParams) (string, bool) {
 	if err != nil {
 		return "[START] " + name + " error: " + err.Error() + " '" + svr.Exec + "'", false
 	}
-	pid = cmd.Process.Pid
 	go func(pid int) {
 		cmd.Wait()
 		// syscall.Wait4(pid, nil, 0, nil)
 	}(pid)
 	time.Sleep(time.Second * time.Duration(svr.StartSec))
+	pid = cmd.Process.Pid
 	if !model.ProcessExist(pid) {
-		return "[START] " + name + " failed", false
+		spid, _, ok := svrIsRunning(svr)
+		if !ok {
+			return "[START] " + name + " failed", false
+		}
+		pid = spid
 	}
 	svr.ManualStop = false
 	svr.Pid = pid
