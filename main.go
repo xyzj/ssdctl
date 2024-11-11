@@ -128,7 +128,7 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 				println(fmt.Sprintf(`create systemd service file done.
 1. copy "%[1]s.service" to "/etc/systemd/system/"
 2. run "systemctl daemon-reload" as root
-3. run "systemctl start %[1]s && system enable %[1]s" as root`, exename))
+3. run "systemctl start %[1]s && systemctl enable %[1]s" as root`, exename))
 				return 0
 			},
 		}).
@@ -499,7 +499,7 @@ func startSvrFork(name string, svr *model.ServiceParams) (string, bool) {
 	if !model.ProcessExist(pid) {
 		spid, _, ok := svrIsRunning(svr)
 		if !ok {
-			return "[START] " + name + " failed", false
+			return "[START] " + name + " failed" + "\n[CMD] " + svr.Exec + " " + strings.Join(svr.Params, " "), false
 		}
 		pid = spid
 	}
