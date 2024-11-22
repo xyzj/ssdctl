@@ -9,8 +9,8 @@ import (
 
 	"extsvr/model"
 
-	"github.com/xyzj/gopsu/gocmd"
-	"github.com/xyzj/gopsu/pathtool"
+	"github.com/xyzj/toolbox/gocmd"
+	"github.com/xyzj/toolbox/pathtool"
 )
 
 var (

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/xyzj/gopsu/pathtool"
+	"github.com/xyzj/toolbox/pathtool"
 	"gopkg.in/yaml.v3"
 )
 

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/xyzj/gopsu/pathtool"
+	"github.com/xyzj/toolbox/pathtool"
 )
 
 type ProcessInfo struct {

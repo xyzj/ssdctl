@@ -14,9 +14,9 @@ import (
 
 	model "extsvr/model"
 
-	"github.com/xyzj/gopsu/gocmd"
-	"github.com/xyzj/gopsu/loopfunc"
-	"github.com/xyzj/gopsu/pathtool"
+	"github.com/xyzj/toolbox/gocmd"
+	"github.com/xyzj/toolbox/loopfunc"
+	"github.com/xyzj/toolbox/pathtool"
 	"gopkg.in/yaml.v3"
 )
 
