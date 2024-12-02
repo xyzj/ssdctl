@@ -372,15 +372,15 @@ func recv(cli *unixClient) {
 
 func statusSvr(name string, svr *model.ServiceParams) string {
 	ss := strings.Builder{}
+	b, err := yaml.Marshal(svr)
+	if err == nil {
+		ss.WriteString("[CONFIG] " + name + ":\n")
+		ss.Write(b)
+		ss.WriteByte(10)
+	}
 	_, ps, ok := svrIsRunning(svr)
 	if !ok {
 		ss.WriteString("[PS] " + name + " is not running\n\n")
-		b, err := yaml.Marshal(svr)
-		if err == nil {
-			ss.WriteString("[CONFIG] " + name + ":\n")
-			ss.Write(b)
-			ss.WriteByte(10)
-		}
 	} else {
 		ss.WriteString("[PS] " + name + ":\n" + ps)
 	}
