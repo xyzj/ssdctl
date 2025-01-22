@@ -1,6 +1,8 @@
 module extsvr
 
-go 1.22
+go 1.22.0
+
+toolchain go1.23.2
 
 replace github.com/xyzj/toolbox => /config/go/src/github.com/xyzj/toolbox
 

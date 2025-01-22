@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -70,18 +71,35 @@ type unixClient struct {
 }
 
 func (uc *unixClient) Send(name, s string) {
-	if !strings.HasSuffix(s, "\x00") {
-		s += "\x00"
+	b := strings.Builder{}
+	bb := strings.Split(s, "\n")
+	for k, v := range bb {
+		if strings.HasPrefix(v, "[") ||
+			strings.HasPrefix(v, "<") ||
+			strings.HasPrefix(v, ">") ||
+			strings.HasPrefix(v, "+") ||
+			strings.HasPrefix(v, "-") ||
+			strings.HasPrefix(v, "*") {
+			b.WriteString(v)
+		} else {
+			b.WriteString("    " + v)
+		}
+		if k < len(bb)-1 {
+			b.WriteByte(10)
+		}
 	}
-	uc.conn.Write([]byte(s))
+	b.WriteByte(0)
+	// if !strings.HasSuffix(s, "\x00") {
+	// 	s += "\x00"
+	// }
+	uc.conn.Write([]byte(b.String()))
 }
 
 func main() {
 	app = gocmd.DefaultProgram(&gocmd.Info{
 		Title: "programs managerment",
 		Ver:   version,
-		Descript: `use "start-stop-daemon" to manager process
-
+		Descript: `
 ssdctld.yaml.sample:
 app1:                    // program name
   priority: 999			 // start priority, from small to large
@@ -262,7 +280,7 @@ func recv(cli *unixClient) {
 				return
 			case model.JobStart: // 启动
 				if !ok && todo.Name != "all" {
-					cli.Send(todo.Name, "[START] unknow server name: "+todo.Name)
+					cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
 					continue
 				}
 				if todo.Name == "all" {
@@ -270,7 +288,7 @@ func recv(cli *unixClient) {
 						if !value.Enable {
 							return true
 						}
-						cli.Send(key, "[STARTING...] "+key)
+						cli.Send(todo.Name, formatOutput(todo.Name, "STARTING...", "")) //"[STARTING...] "+todo.Name)
 						s, _ := startSvrFork(key, value)
 						cli.Send(key, s)
 						// if ok {
@@ -280,7 +298,7 @@ func recv(cli *unixClient) {
 						return true
 					})
 				} else {
-					cli.Send(todo.Name, "[STARTING...] "+todo.Name)
+					cli.Send(todo.Name, formatOutput(todo.Name, "STARTING...", "")) //"[STARTING...] "+todo.Name)
 					s, _ := startSvrFork(todo.Name, exe)
 					cli.Send(todo.Name, s)
 					// if ok {
@@ -290,7 +308,7 @@ func recv(cli *unixClient) {
 				}
 			case model.JobStop: // 停止
 				if !ok && todo.Name != "all" {
-					cli.Send(todo.Name, "[STOP] unknow server name: "+todo.Name)
+					cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
 					continue
 				}
 				if todo.Name == "all" {
@@ -310,31 +328,16 @@ func recv(cli *unixClient) {
 				} else {
 					cli.Send(todo.Name, stopSvrFork(todo.Name, exe))
 				}
-			case model.JobStatus: // 状态查询
-				if !ok && todo.Name != "all" {
-					cli.Send(todo.Name, "unknow server name: "+todo.Name)
-					continue
-				}
-				if todo.Name == "all" {
-					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
-						if value.Enable {
-							cli.Send(key, statusSvr(key, value))
-						}
-						return true
-					})
-				} else {
-					cli.Send(todo.Name, statusSvr(todo.Name, exe))
-				}
 			case model.JobEnable: // 启用
 				if !ok {
-					cli.Send(todo.Name, "unknow server name: "+todo.Name)
+					cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
 					continue
 				}
 				allconf.SetEnable(todo.Name, true)
 				cli.Send(todo.Name, ">>> "+todo.Name+" enabled")
 			case model.JobDisable: // 停用
 				if !ok {
-					cli.Send(todo.Name, "unknow server name: "+todo.Name)
+					cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
 					continue
 				}
 				allconf.SetEnable(todo.Name, false)
@@ -346,8 +349,12 @@ func recv(cli *unixClient) {
 					cli.Send(todo.Name, "--- "+todo.Name+" removed")
 				}
 			case model.JobCreate: // 新增服务
-				if todo.Name == "all" {
-					cli.Send("all", "can not use 'all' as application's name")
+				if todo.Name == "all" ||
+					todo.Name == "enable" ||
+					todo.Name == "disable" ||
+					todo.Name == "running" ||
+					todo.Name == "stopped" {
+					cli.Send("all", "can not use 1"+todo.Name+"1 as application's name")
 					return
 				}
 
@@ -360,10 +367,64 @@ func recv(cli *unixClient) {
 				} else {
 					cli.Send(todo.Name, "+++ "+todo.Name+" added")
 				}
-			case model.JobList, model.JobUpate: // 列出所有，刷新
-				if todo.Do == model.JobUpate {
-					allconf.FromFiles()
+			case model.JobStatus: // 状态查询
+				switch todo.Name {
+				case "running":
+					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+						_, s, ok := svrIsRunning(value)
+						if ok {
+							cli.Send(key, formatOutput(key, "PS", s)) //"[PS\t"+key+"]:\n"+s)
+						}
+						return true
+					})
+				case "all":
+					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+						if value.Enable {
+							cli.Send(key, statusSvr(key, value))
+						}
+						return true
+					})
+				default:
+					if !ok {
+						cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
+						continue
+					}
+					cli.Send(todo.Name, statusSvr(todo.Name, exe))
 				}
+			case model.JobList:
+				switch todo.Name {
+				case "enable":
+					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+						if value.Enable {
+							cli.Send(key, listSvr(key, value))
+						}
+						return true
+					})
+				case "disable":
+					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+						if !value.Enable {
+							cli.Send(key, listSvr(key, value))
+						}
+						return true
+					})
+				case "stopped":
+					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+						if value.Enable && value.ManualStop {
+							cli.Send(key, listSvr(key, value))
+						}
+						return true
+					})
+				case "":
+					cli.Send("", allconf.Print())
+				default:
+					if !ok {
+						cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
+						continue
+					}
+					cli.Send(todo.Name, listSvr(todo.Name, exe))
+				}
+			case model.JobUpate: // 列出所有，刷新
+				allconf.FromFiles()
 				cli.Send("", allconf.Print())
 			}
 		}
@@ -371,18 +432,26 @@ func recv(cli *unixClient) {
 }
 
 func statusSvr(name string, svr *model.ServiceParams) string {
-	ss := strings.Builder{}
-	b, err := yaml.Marshal(svr)
-	if err == nil {
-		ss.WriteString("[CONFIG] " + name + ":\n")
-		ss.Write(b)
-		ss.WriteByte(10)
-	}
 	_, ps, ok := svrIsRunning(svr)
 	if !ok {
-		ss.WriteString("[PS] " + name + " is not running\n\n")
+		return formatOutput(name, "PS", "not running") // "[PS\t" + name + "]:\nnot running"
 	} else {
-		ss.WriteString("[PS] " + name + ":\n" + ps)
+		return formatOutput(name, "PS", ps) //"[PS\t" + name + "]:\n" + ps
+	}
+}
+
+func listSvr(name string, svr *model.ServiceParams) string {
+	ss := strings.Builder{}
+	b, err := yaml.Marshal(svr)
+	if err != nil {
+		return formatOutput(name, "CONFIG", "config data error, use `update` command to reload all config. "+err.Error())
+	}
+	ss.WriteString(formatOutput(name, "", string(b)))
+	_, ps, ok := svrIsRunning(svr)
+	if !ok {
+		ss.WriteString(formatOutput("", "PS", "not running"))
+	} else {
+		ss.WriteString(formatOutput("", "PS", ps))
 	}
 	return ss.String()
 }
@@ -416,11 +485,14 @@ func svrIsRunning(svr *model.ServiceParams) (int, string, bool) {
 }
 
 func startSvrFork(name string, svr *model.ServiceParams) (string, bool) {
-	if pid, ps, ok := svrIsRunning(svr); ok {
+	var spid int
+	var ok bool
+	var ps string
+	if spid, ps, ok = svrIsRunning(svr); ok {
 		if svr.Pid == 0 {
-			svr.Pid = pid
+			svr.Pid = spid
 		}
-		return "[START] " + name + " is still running\n\n[PS] " + name + ":\n" + ps, false
+		return formatOutput(name, "START", "still running") + "\n" + formatOutput(name, "PS", ps), false // "[START\t" + name + "] is still running\n[PS] " + name + ":\n" + ps, false
 	}
 	var pid int
 	var err error
@@ -488,7 +560,7 @@ func startSvrFork(name string, svr *model.ServiceParams) (string, bool) {
 	// 开始执行
 	err = cmd.Start()
 	if err != nil {
-		return "[START] " + name + " error: " + err.Error() + " '" + svr.Exec + "'", false
+		return formatOutput(name, "START", "error: "+err.Error()+" '"+svr.Exec+"'"), false // "[START\t" + name + "] error: " + err.Error() + " '" + svr.Exec + "'", false
 	}
 	go func(pid int) {
 		cmd.Wait()
@@ -497,27 +569,27 @@ func startSvrFork(name string, svr *model.ServiceParams) (string, bool) {
 	time.Sleep(time.Second * time.Duration(svr.StartSec))
 	pid = cmd.Process.Pid
 	if !model.ProcessExist(pid) {
-		spid, _, ok := svrIsRunning(svr)
+		spid, _, ok = svrIsRunning(svr)
 		if !ok {
-			return "[START] " + name + " failed" + "\n[CMD] " + svr.Exec + " " + strings.Join(svr.Params, " "), false
+			return formatOutput(name, "START", "failed") + "\n" + formatOutput(name, "CMD", svr.Exec+" "+strings.Join(svr.Params, " ")), false // "[START\t" + name + "] failed" + "\n[CMD\t" + name + "]:\n" + svr.Exec + " " + strings.Join(svr.Params, " "), false
 		}
 		pid = spid
 	}
 	svr.ManualStop = false
 	svr.Pid = pid
 	os.WriteFile(filepath.Join(piddir, name+".pid"), []byte(fmt.Sprintf("%d", pid)), 0o664)
-	return "[START] " + name + " done, PID: " + fmt.Sprintf("%d", pid) + "\n[CMD] " + svr.Exec + " " + strings.Join(svr.Params, " "), true
+	return formatOutput(name, "START", "done, PID: "+strconv.Itoa(pid)), true // "[START\t" + name + "]\ndone. PID: " + fmt.Sprintf("%d", pid) + "\n[CMD] " + svr.Exec + " " + strings.Join(svr.Params, " "), true
 }
 
 func stopSvrFork(name string, svr *model.ServiceParams) string {
 	pid, _, ok := svrIsRunning(svr)
 	if !ok {
-		return "[STOP] " + name + " is not running"
+		return formatOutput(name, "STOP", "not running") //"[STOP\t" + name + "]:\nnot running"
 	}
 
 	err := syscall.Kill(pid, syscall.SIGINT)
 	if err != nil {
-		return "[STOP] " + name + " error: " + err.Error()
+		return formatOutput(name, "STOP", "error: "+err.Error()) //"[STOP\t" + name + "] error:\n" + err.Error()
 	}
 	// if svr.Pid == 0 {
 	// 	go func(pid int) {
@@ -536,5 +608,25 @@ GOON:
 	svr.Pid = 0
 	os.Remove(filepath.Join(piddir, name+".pid"))
 	time.Sleep(time.Millisecond * 200)
-	return "[STOP] " + name + " done, PID: " + fmt.Sprintf("%d", pid)
+	return formatOutput(name, "STOP", "done, PID: "+fmt.Sprintf("%d", pid)) // "[STOP\t" + name + "]:\ndone, PID: " + fmt.Sprintf("%d", pid)
+}
+
+func formatOutput(name, do, body string) string {
+	s := ""
+	if name == "" {
+		if do == "" {
+			return "\n" + body
+		}
+		s = "< " + do + " >"
+	} else {
+		if do == "" {
+			s = "[ " + name + " ]"
+		} else {
+			s = "[ " + name + "  " + do + " ]"
+		}
+	}
+	if body == "" {
+		return s
+	}
+	return s + "\n" + body
 }

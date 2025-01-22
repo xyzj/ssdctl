@@ -29,7 +29,9 @@ func init() {
 // params：要执行的参数，多个参数用`，`分割，（仅新增时有效）
 func main() {
 	gocmd.NewProgram(&gocmd.Info{
-		Ver: version,
+		Ver:      version,
+		Title:    "start stop daemon",
+		Descript: "control background process",
 	}).
 		AddCommand(&gocmd.Command{
 			Name:     "start",
@@ -72,14 +74,6 @@ func main() {
 			},
 		}).
 		AddCommand(&gocmd.Command{
-			Name:     "status",
-			Descript: "check the status of a program",
-			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
-				send2svr(os.Args[1:]...)
-				return 0
-			},
-		}).
-		AddCommand(&gocmd.Command{
 			Name:     "remove",
 			Descript: "remove a program config from extsvr.yaml",
 			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
@@ -97,8 +91,32 @@ func main() {
 			},
 		}).
 		AddCommand(&gocmd.Command{
+			Name:     "status",
+			Descript: "check the status of a program",
+			HelpMsg: `Usage:
+  status [params...]
+
+Available commands:
+  running	show all running programs status
+  all		show all enabled programs status
+  [name]	show [name] status`,
+			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+				send2svr(os.Args[1:]...)
+				return 0
+			},
+		}).
+		AddCommand(&gocmd.Command{
 			Name:     "list",
-			Descript: "print extsvr.yaml",
+			Descript: "list program config and status",
+			HelpMsg: `Usage:
+  list [params...]
+
+Available commands:
+  enable	list all enabled programs status
+  disable	list all disabled programs status
+  stopped	list all enabled but manual stopped programs
+  [name]	list [name] process status
+  [nothing]	list all programs configured`,
 			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
 				send2svr(os.Args[1:]...)
 				return 0
@@ -252,8 +270,16 @@ func send2svr(params ...string) {
 		conn.Write(todo.ToJSON())
 		time.Sleep(time.Millisecond * 200)
 	case "list":
-		todo := &model.ToDo{
-			Do: model.JobList,
+		var todo *model.ToDo
+		if len(params) > 1 {
+			todo = &model.ToDo{
+				Do:   model.JobList,
+				Name: params[1],
+			}
+		} else {
+			todo = &model.ToDo{
+				Do: model.JobList,
+			}
 		}
 		conn.Write(todo.ToJSON())
 		time.Sleep(time.Millisecond * 200)

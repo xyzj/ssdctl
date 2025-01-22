@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,6 +41,12 @@ func (c *Config) ensureDefault(svr *ServiceParams) *ServiceParams {
 		svr.StartSec = 2
 	}
 	return svr
+}
+
+func (c *Config) Len() int {
+	c.locker.Lock()
+	defer c.locker.Unlock()
+	return len(c.data)
 }
 
 func (c *Config) FromFiles() {
@@ -84,7 +91,7 @@ func (c *Config) AddItem(name string, svr *ServiceParams) error {
 	defer c.locker.Unlock()
 	_, ok := c.data[name]
 	if ok {
-		return fmt.Errorf("service " + name + " already exist")
+		return errors.New("service " + name + " already exist")
 	}
 	b, err := yaml.Marshal(c.ensureDefault(svr))
 	if err != nil {
@@ -102,7 +109,7 @@ func (c *Config) DelItem(name string) error {
 	c.locker.Lock()
 	defer c.locker.Unlock()
 	if _, ok := c.data[name]; !ok {
-		return fmt.Errorf("service " + name + " not exist")
+		return errors.New("service " + name + " not exist")
 	}
 	delete(c.data, name)
 	err := os.Remove(filepath.Join(c.dir, name+".yaml"))
@@ -126,7 +133,7 @@ func (c *Config) SetEnable(name string, enable bool) error {
 	defer c.locker.Unlock()
 	s, ok := c.data[name]
 	if !ok {
-		return fmt.Errorf("service " + name + " not found")
+		return errors.New("service " + name + " not found")
 	}
 	if s.Enable == enable {
 		return nil
