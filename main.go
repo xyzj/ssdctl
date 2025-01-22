@@ -354,7 +354,7 @@ func recv(cli *unixClient) {
 					todo.Name == "disable" ||
 					todo.Name == "running" ||
 					todo.Name == "stopped" {
-					cli.Send("all", "can not use 1"+todo.Name+"1 as application's name")
+					cli.Send("all", "can not use `"+todo.Name+"` as application's name")
 					return
 				}
 
