@@ -112,10 +112,11 @@ Available commands:
   list [params...]
 
 Available commands:
-  enable	list all enabled programs status
-  disable	list all disabled programs status
+  enable	list all enabled programs
+  disable	list all disabled programs
   stopped	list all enabled but manual stopped programs
-  [name]	list [name] process status
+  all		show all programs
+  [name]	list [name] process config and status
   [nothing]	list all programs configured`,
 			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
 				send2svr(os.Args[1:]...)

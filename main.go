@@ -416,6 +416,11 @@ func recv(cli *unixClient) {
 					})
 				case "":
 					cli.Send("", allconf.Print())
+				case "all":
+					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+						cli.Send(key, listSvr(key, value))
+						return true
+					})
 				default:
 					if !ok {
 						cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
@@ -622,7 +627,7 @@ func formatOutput(name, do, body string) string {
 		if do == "" {
 			s = "[ " + name + " ]"
 		} else {
-			s = "[ " + name + "  " + do + " ]"
+			s = "[ " + name + ":  " + do + " ]"
 		}
 	}
 	if body == "" {
