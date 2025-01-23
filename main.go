@@ -377,6 +377,32 @@ func recv(cli *unixClient) {
 						}
 						return true
 					})
+				case "disable":
+					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+						if value.Enable {
+							return true
+						}
+						_, s, ok := svrIsRunning(value)
+						if ok {
+							cli.Send(key, formatOutput(key, "PS", s)) //"[PS\t"+key+"]:\n"+s)
+						} else {
+							cli.Send(key, formatOutput(key, "PS", "not running"))
+						}
+						return true
+					})
+				case "enable":
+					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+						if !value.Enable {
+							return true
+						}
+						_, s, ok := svrIsRunning(value)
+						if ok {
+							cli.Send(key, formatOutput(key, "PS", s)) //"[PS\t"+key+"]:\n"+s)
+						} else {
+							cli.Send(key, formatOutput(key, "PS", "not running"))
+						}
+						return true
+					})
 				case "all":
 					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
 						if value.Enable {

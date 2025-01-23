@@ -98,6 +98,8 @@ func main() {
 
 Available commands:
   running	show all running programs status
+  enable	show all enabled programs status
+  disable	show all disabled programs status
   all		show all enabled programs status
   [name]	show [name] status`,
 			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
