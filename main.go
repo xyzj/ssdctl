@@ -288,7 +288,7 @@ func recv(cli *unixClient) {
 						if !value.Enable {
 							return true
 						}
-						cli.Send(todo.Name, formatOutput(todo.Name, "STARTING...", "||>"+value.Exec+" "+strings.Join(value.Params, " "))) //"[STARTING...] "+todo.Name)
+						cli.Send(todo.Name, formatOutput(todo.Name, "STARTING...", "||> "+value.Exec+" "+strings.Join(value.Params, " "))) //"[STARTING...] "+todo.Name)
 						s, _ := startSvrFork(key, value)
 						cli.Send(key, s)
 						// if ok {
@@ -298,7 +298,7 @@ func recv(cli *unixClient) {
 						return true
 					})
 				} else {
-					cli.Send(todo.Name, formatOutput(todo.Name, "STARTING...", "||>"+exe.Exec+" "+strings.Join(exe.Params, " "))) //"[STARTING...] "+todo.Name)
+					cli.Send(todo.Name, formatOutput(todo.Name, "STARTING...", "||> "+exe.Exec+" "+strings.Join(exe.Params, " "))) //"[STARTING...] "+todo.Name)
 					s, _ := startSvrFork(todo.Name, exe)
 					cli.Send(todo.Name, s)
 					// if ok {
