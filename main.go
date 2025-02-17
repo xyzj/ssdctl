@@ -602,7 +602,7 @@ func startSvrFork(name string, svr *model.ServiceParams) (string, bool) {
 	if !model.ProcessExist(pid) {
 		spid, _, ok = svrIsRunning(svr)
 		if !ok {
-			return formatOutput(name, "START", "failed") + "\n" + formatOutput(name, "CMD", svr.Exec+" "+strings.Join(svr.Params, " ")), false // "[START\t" + name + "] failed" + "\n[CMD\t" + name + "]:\n" + svr.Exec + " " + strings.Join(svr.Params, " "), false
+			return formatOutput(name, "START", "failed"), false // + "\n" + formatOutput(name, "CMD", svr.Exec+" "+strings.Join(svr.Params, " ")), false // "[START\t" + name + "] failed" + "\n[CMD\t" + name + "]:\n" + svr.Exec + " " + strings.Join(svr.Params, " "), false
 		}
 		pid = spid
 	}
