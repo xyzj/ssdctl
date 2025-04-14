@@ -15,6 +15,7 @@ import (
 
 	model "extsvr/model"
 
+	"github.com/xyzj/toolbox"
 	"github.com/xyzj/toolbox/gocmd"
 	"github.com/xyzj/toolbox/loopfunc"
 	"github.com/xyzj/toolbox/pathtool"
@@ -30,6 +31,7 @@ Description=services manager daemon
 After=network.target
 
 [Service]
+Environment="SSDCTLD_CHECK_SECONDS=60"
 EnvironmentFile=
 User=%s
 Group=%s
@@ -193,8 +195,8 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 	chrecv := make(chan *unixClient)
 	// 后台处理
 	if !*nokeepalive {
-		go loopfunc.LoopFunc(func(params ...interface{}) {
-			td := time.Minute
+		go loopfunc.LoopFunc(func(params ...any) {
+			td := time.Second * time.Duration(min(max(toolbox.String2Int(os.Getenv("SSDCTLD_CHECK_SECONDS"), 10), 60), 600))
 			t := time.NewTicker(td)
 			for {
 				select {
@@ -219,7 +221,7 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 		}, "recv", nil) // stdlog.DefaultWriter())
 	}
 	// 开始监听
-	loopfunc.LoopFunc(func(params ...interface{}) {
+	loopfunc.LoopFunc(func(params ...any) {
 		uln, err := net.ListenUnix("unix", &net.UnixAddr{Name: psock, Net: "unix"})
 		if err != nil {
 			println("listen from unix socket error: " + err.Error())
