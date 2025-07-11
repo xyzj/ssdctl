@@ -4,10 +4,8 @@ go 1.23.0
 
 toolchain go1.24.0
 
-replace github.com/xyzj/toolbox => /config/go/src/github.com/xyzj/toolbox
-
 require (
-	github.com/xyzj/toolbox v0.0.0-00010101000000-000000000000
+	github.com/xyzj/toolbox v0.0.0-20250709005517-f482765063ca
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -23,7 +21,7 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/xyzj/deepcopy v0.0.0-20250124011539-76155efb897b // indirect
 	golang.org/x/arch v0.15.0 // indirect
-	golang.org/x/crypto v0.36.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/crypto v0.37.0 // indirect
+	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/text v0.24.0 // indirect
 )
