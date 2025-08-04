@@ -17,6 +17,7 @@ import (
 
 	"github.com/xyzj/toolbox"
 	"github.com/xyzj/toolbox/gocmd"
+	"github.com/xyzj/toolbox/logger"
 	"github.com/xyzj/toolbox/loopfunc"
 	"github.com/xyzj/toolbox/pathtool"
 	"gopkg.in/yaml.v3"
@@ -49,8 +50,10 @@ RestartSec=42s
 WantedBy=multi-user.target`
 
 var (
+	nologger    = flag.Bool("nolog", false, "do not save control log")
 	nokeepalive = flag.Bool("stopka", false, "do not check and keep programs alive")
-	// stdlog     logger.Logger
+
+	stdlog     logger.Logger
 	exename    = pathtool.GetExecName()
 	psock      = pathtool.JoinPathFromHere("ssdctld.sock")
 	confile    = pathtool.JoinPathFromHere("ssdctld.yaml")
@@ -98,6 +101,14 @@ func (uc *unixClient) Send(name, s string) {
 }
 
 func main() {
+	if !*nologger {
+		stdlog = logger.NewLogger(logger.LogInfo,
+			logger.OptFileDays(10),
+			logger.OptFileDir(logdir),
+			logger.OptFilename("ssdctld"))
+	} else {
+		stdlog = logger.NewNilLogger()
+	}
 	app = gocmd.DefaultProgram(&gocmd.Info{
 		Title: "programs managerment",
 		Ver:   version,
@@ -209,7 +220,8 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 						if _, _, ok := svrIsRunning(value); ok {
 							return true
 						}
-						startSvrFork(key, value)
+						s, _ := startSvrFork(key, value)
+						stdlog.Info(key + " not running, restart... " + s)
 						return true
 					})
 				case cli := <-chrecv:
@@ -224,16 +236,17 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 	loopfunc.LoopFunc(func(params ...any) {
 		uln, err := net.ListenUnix("unix", &net.UnixAddr{Name: psock, Net: "unix"})
 		if err != nil {
-			println("listen from unix socket error: " + err.Error())
+			stdlog.Error("listen from unix socket error: " + err.Error())
 			app.Exit(1)
 		}
 		uln.SetUnlinkOnClose(true)
-
+		stdlog.Info("start listen from unix socket:" + psock)
 		// 监听客户端
 		for {
 			fd, err := uln.AcceptUnix()
 			if err != nil {
 				if strings.Contains(err.Error(), net.ErrClosed.Error()) {
+					stdlog.Error("listener close")
 					panic(fmt.Errorf("listener close"))
 				}
 				continue
@@ -286,6 +299,7 @@ func recv(cli *unixClient) {
 					continue
 				}
 				if todo.Name == "all" {
+					stdlog.Info("start all")
 					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
 						if !value.Enable {
 							return true
@@ -293,20 +307,13 @@ func recv(cli *unixClient) {
 						cli.Send(todo.Name, formatOutput(todo.Name, "STARTING...", "||> "+value.Exec+" "+strings.Join(value.Params, " "))) //"[STARTING...] "+todo.Name)
 						s, _ := startSvrFork(key, value)
 						cli.Send(key, s)
-						// if ok {
-						// 	// time.Sleep(time.Second * 1)
-						// 	cli.Send(key, statusSvr(key, value))
-						// }
 						return true
 					})
 				} else {
 					cli.Send(todo.Name, formatOutput(todo.Name, "STARTING...", "||> "+exe.Exec+" "+strings.Join(exe.Params, " "))) //"[STARTING...] "+todo.Name)
 					s, _ := startSvrFork(todo.Name, exe)
 					cli.Send(todo.Name, s)
-					// if ok {
-					// 	// time.Sleep(time.Second * 1)
-					// 	cli.Send(todo.Name, statusSvr(todo.Name, exe))
-					// }
+					stdlog.Info(s)
 				}
 			case model.JobStop: // 停止
 				if !ok && todo.Name != "all" {
@@ -314,6 +321,7 @@ func recv(cli *unixClient) {
 					continue
 				}
 				if todo.Name == "all" {
+					stdlog.Info("stop all")
 					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
 						if !value.Enable {
 							return true
@@ -328,7 +336,9 @@ func recv(cli *unixClient) {
 						return true
 					})
 				} else {
-					cli.Send(todo.Name, stopSvrFork(todo.Name, exe))
+					s := stopSvrFork(todo.Name, exe)
+					cli.Send(todo.Name, s)
+					stdlog.Warning(s)
 				}
 			case model.JobEnable: // 启用
 				if !ok {
@@ -337,6 +347,7 @@ func recv(cli *unixClient) {
 				}
 				allconf.SetEnable(todo.Name, true)
 				cli.Send(todo.Name, ">>> "+todo.Name+" enabled")
+				stdlog.Info("enable " + todo.Name)
 			case model.JobDisable: // 停用
 				if !ok {
 					cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
@@ -344,11 +355,13 @@ func recv(cli *unixClient) {
 				}
 				allconf.SetEnable(todo.Name, false)
 				cli.Send(todo.Name, ">>> "+todo.Name+" disabled")
+				stdlog.Info("disable " + todo.Name)
 			case model.JobRemove: // 删除服务
 				if err := allconf.DelItem(todo.Name); err != nil {
 					cli.Send(todo.Name, "--- "+todo.Name+" remove failed: "+err.Error())
 				} else {
 					cli.Send(todo.Name, "--- "+todo.Name+" removed")
+					stdlog.Info("remove " + todo.Name)
 				}
 			case model.JobCreate: // 新增服务
 				if todo.Name == "all" ||
@@ -368,6 +381,7 @@ func recv(cli *unixClient) {
 					cli.Send(todo.Name, "+++ "+todo.Name+" add failed: "+err.Error())
 				} else {
 					cli.Send(todo.Name, "+++ "+todo.Name+" added")
+					stdlog.Info("add " + todo.Name)
 				}
 			case model.JobStatus: // 状态查询
 				switch todo.Name {
