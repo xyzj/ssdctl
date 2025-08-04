@@ -478,7 +478,7 @@ func recv(cli *unixClient) {
 					cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
 					continue
 				}
-				allconf.SetLevel(todo.Name, toolbox.String2Byte(todo.Exec, 10))
+				allconf.SetLevel(todo.Name, uint32(toolbox.String2Int32(todo.Exec, 10)))
 				cli.Send(todo.Name, ">>> set "+todo.Name+" start level to "+strconv.FormatUint(uint64(toolbox.String2Int32(todo.Exec, 10)), 10))
 			}
 		}

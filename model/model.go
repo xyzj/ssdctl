@@ -39,7 +39,7 @@ type ServiceParams struct {
 	Env        []string `yaml:"env,omitempty"`
 	Pid        int      `yaml:"-"`
 	StartSec   uint32   `yaml:"startsec"`
-	Priority   byte     `yaml:"priority"`
+	Priority   uint32   `yaml:"priority"`
 	Log2file   bool     `yaml:"log2file,omitempty"`
 	Enable     bool     `yaml:"enable"`
 	ManualStop bool     `yaml:"-"`

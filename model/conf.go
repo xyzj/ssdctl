@@ -126,14 +126,14 @@ func (c *Config) GetItem(name string) (*ServiceParams, bool) {
 	s, ok := c.data[name]
 	return s, ok
 }
-func (c *Config) SetLevel(name string, l byte) error {
+func (c *Config) SetLevel(name string, l uint32) error {
 	c.locker.Lock()
 	defer c.locker.Unlock()
 	s, ok := c.data[name]
 	if !ok {
 		return errors.New("service " + name + " not found")
 	}
-	s.Priority = max(min(l, 255), 1)
+	s.Priority = max(min(l, 99), 1)
 	b, err := yaml.Marshal(s)
 	if err != nil {
 		return err
