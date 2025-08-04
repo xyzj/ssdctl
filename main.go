@@ -459,6 +459,13 @@ func recv(cli *unixClient) {
 			case model.JobUpate: // 列出所有，刷新
 				allconf.FromFiles()
 				cli.Send("", allconf.Print())
+			case model.JobSetLevel: // 设置优先级
+				if !ok {
+					cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
+					continue
+				}
+				allconf.SetLevel(todo.Name, toolbox.String2Byte(todo.Exec, 10))
+				cli.Send(todo.Name, ">>> set "+todo.Name+" start level to "+strconv.FormatUint(uint64(toolbox.String2Int32(todo.Exec, 10)), 10))
 			}
 		}
 	}
@@ -610,7 +617,7 @@ func startSvrFork(name string, svr *model.ServiceParams) (string, bool) {
 	}
 	svr.ManualStop = false
 	svr.Pid = pid
-	os.WriteFile(filepath.Join(piddir, name+".pid"), []byte(fmt.Sprintf("%d", pid)), 0o664)
+	os.WriteFile(filepath.Join(piddir, name+".pid"), fmt.Appendf([]byte{}, "%d", pid), 0o664)
 	return formatOutput(name, "START", "done, PID: "+strconv.Itoa(pid)), true // "[START\t" + name + "]\ndone. PID: " + fmt.Sprintf("%d", pid) + "\n[CMD] " + svr.Exec + " " + strings.Join(svr.Params, " "), true
 }
 

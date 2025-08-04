@@ -34,12 +34,11 @@ func (c *Config) ensureDefault(svr *ServiceParams) *ServiceParams {
 			svr.Exec = x
 		}
 	}
-	if svr.Priority < 1 {
-		svr.Priority = 999
+	if svr.Priority == 0 {
+		svr.Priority = 200
 	}
-	if svr.StartSec < 1 {
-		svr.StartSec = 2
-	}
+	svr.Priority = min(max(svr.Priority, 1), 255)
+	svr.StartSec = max(svr.StartSec, 2)
 	return svr
 }
 
@@ -126,6 +125,20 @@ func (c *Config) GetItem(name string) (*ServiceParams, bool) {
 	defer c.locker.RUnlock()
 	s, ok := c.data[name]
 	return s, ok
+}
+func (c *Config) SetLevel(name string, l byte) error {
+	c.locker.Lock()
+	defer c.locker.Unlock()
+	s, ok := c.data[name]
+	if !ok {
+		return errors.New("service " + name + " not found")
+	}
+	s.Priority = max(min(l, 255), 1)
+	b, err := yaml.Marshal(s)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(c.dir, name+".yaml"), b, 0o664)
 }
 
 func (c *Config) SetEnable(name string, enable bool) error {

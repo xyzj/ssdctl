@@ -5,10 +5,10 @@ import (
 )
 
 type ToDo struct {
-	Do     Jobs     `json:"do"`
 	Name   string   `json:"name"`
 	Exec   string   `json:"exec,omitempty"`
 	Params []string `json:"params,omitempty"`
+	Do     Jobs     `json:"do"`
 }
 
 func (td *ToDo) ToJSON() []byte {
@@ -38,8 +38,8 @@ type ServiceParams struct {
 	Replace    []string `yaml:"replace,omitempty"`
 	Env        []string `yaml:"env,omitempty"`
 	Pid        int      `yaml:"-"`
-	Priority   uint32   `yaml:"priority"`
 	StartSec   uint32   `yaml:"startsec"`
+	Priority   byte     `yaml:"priority"`
 	Log2file   bool     `yaml:"log2file,omitempty"`
 	Enable     bool     `yaml:"enable"`
 	ManualStop bool     `yaml:"-"`
@@ -60,4 +60,5 @@ const (
 	JobList
 	JobUpate
 	JobShutdown
+	JobSetLevel
 )

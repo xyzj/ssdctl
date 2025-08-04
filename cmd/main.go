@@ -133,6 +133,14 @@ Available commands:
 				return 0
 			},
 		}).
+		AddCommand(&gocmd.Command{
+			Name:     "setlevel",
+			Descript: "set a program's start level, 1-255",
+			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+				send2svr(os.Args[1:]...)
+				return 0
+			},
+		}).
 		ExecuteRun()
 }
 
@@ -150,7 +158,7 @@ func send2svr(params ...string) {
 			println("Usage:\n\t " + os.Args[0] + " " + params[0] + " app")
 			return
 		}
-	case "create":
+	case "create", "startlevel":
 		if l < 3 {
 			println("Usage:\n\t " + os.Args[0] + " create appname execpath param1 param2 ...")
 			return
@@ -295,6 +303,14 @@ func send2svr(params ...string) {
 	case "shutdown":
 		todo := &model.ToDo{
 			Do: model.JobShutdown,
+		}
+		conn.Write(todo.ToJSON())
+		time.Sleep(time.Millisecond * 200)
+	case "startlevel":
+		todo := &model.ToDo{
+			Name: params[1],
+			Do:   model.JobSetLevel,
+			Exec: params[2],
 		}
 		conn.Write(todo.ToJSON())
 		time.Sleep(time.Millisecond * 200)

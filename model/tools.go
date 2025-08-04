@@ -11,9 +11,9 @@ import (
 )
 
 type ProcessInfo struct {
-	Pid     int
 	Name    string
 	CmdLine string
+	Pid     int
 }
 
 // ProcessExist only for linux
