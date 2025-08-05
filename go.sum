@@ -59,6 +59,8 @@ github.com/twitchyliquid64/golang-asm v0.15.1 h1:SU5vSMR7hnwNxj24w34ZyCi/FmDZTkS
 github.com/twitchyliquid64/golang-asm v0.15.1/go.mod h1:a1lVb/DtPvCB8fslRZhAngC2+aY1QWCk3Cedj/Gdt08=
 github.com/xyzj/deepcopy v0.0.0-20250124011539-76155efb897b h1:x59qvr1IJVTbANd0lw0SJdj1lE6MP0x5gbmsvIWW1sc=
 github.com/xyzj/deepcopy v0.0.0-20250124011539-76155efb897b/go.mod h1:TNGZXviljt+V3Jml641X2lSNKCS0ve9gv56+E5sVSnY=
+github.com/xyzj/go-cmd v0.0.0-20250805023909-3505e4d128d6 h1:8E5cD+SHM9XRkDxKcmn0Dp83TXTV1jUYw4CrtnpqTkA=
+github.com/xyzj/go-cmd v0.0.0-20250805023909-3505e4d128d6/go.mod h1:S6aPysHA5j1EsPNfEJBkjbPOJeQvnHE4e7yE1GlXZ6k=
 github.com/xyzj/toolbox v0.0.0-20250709005517-f482765063ca h1:gJs3tzEp7TfBccyMLmCIEBjqO7SnGOkw0i5m/8bwECY=
 github.com/xyzj/toolbox v0.0.0-20250709005517-f482765063ca/go.mod h1:nG4HeoBdqngiXW1AMrAwzMRmhdu0jOzkHchISYwcUjo=
 golang.org/x/arch v0.15.0 h1:QtOrQd0bTUnhNVNndMpLHNWrDmYzZ2KDqSrEymqInZw=

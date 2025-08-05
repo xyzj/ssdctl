@@ -15,11 +15,10 @@ import (
 
 	model "extsvr/model"
 
+	gocmd "github.com/xyzj/go-cmd"
 	"github.com/xyzj/toolbox"
-	"github.com/xyzj/toolbox/gocmd"
 	"github.com/xyzj/toolbox/logger"
 	"github.com/xyzj/toolbox/loopfunc"
-	"github.com/xyzj/toolbox/pathtool"
 	"gopkg.in/yaml.v3"
 )
 
@@ -54,13 +53,13 @@ var (
 	nokeepalive = flag.Bool("stopka", false, "do not check and keep programs alive")
 
 	stdlog     logger.Logger
-	exename    = pathtool.GetExecName()
-	psock      = pathtool.JoinPathFromHere("ssdctld.sock")
-	confile    = pathtool.JoinPathFromHere("ssdctld.yaml")
-	confileOld = pathtool.JoinPathFromHere("extsvr.yaml")
-	logdir     = pathtool.JoinPathFromHere("log")
-	piddir     = pathtool.JoinPathFromHere("pid.d")
-	cnfdir     = pathtool.JoinPathFromHere("cnf.d")
+	exename    = gocmd.GetExecName()
+	psock      = gocmd.JoinPathFromHere("ssdctld.sock")
+	confile    = gocmd.JoinPathFromHere("ssdctld.yaml")
+	confileOld = gocmd.JoinPathFromHere("extsvr.yaml")
+	logdir     = gocmd.JoinPathFromHere("log")
+	piddir     = gocmd.JoinPathFromHere("pid.d")
+	cnfdir     = gocmd.JoinPathFromHere("cnf.d")
 	allconf    *model.Config
 
 	app     *gocmd.Program
@@ -146,14 +145,14 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 					uname = u.Username
 					ugrp = g.Name
 				}
-				os.WriteFile(pathtool.JoinPathFromHere(exename+".service"), []byte(fmt.Sprintf(systemd,
+				os.WriteFile(gocmd.JoinPathFromHere(exename+".service"), []byte(fmt.Sprintf(systemd,
 					exename,
 					uname,
 					ugrp,
-					pathtool.GetExecDir(),
-					pathtool.GetExecFullpath(),
-					pathtool.GetExecFullpath(),
-					pathtool.GetExecFullpath(),
+					gocmd.GetExecDir(),
+					gocmd.GetExecFullpath(),
+					gocmd.GetExecFullpath(),
+					gocmd.GetExecFullpath(),
 					psock,
 				)), 0o664)
 				println(fmt.Sprintf(`create systemd service file done.
@@ -167,7 +166,7 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 			Name:     "addpath",
 			Descript: "add `pwd` to PATH env",
 			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
-				err := pathtool.AddPathEnvFromHere()
+				err := gocmd.AddPathEnvFromHere()
 				if err != nil {
 					println(err.Error())
 					return 1
@@ -181,22 +180,22 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 		}).
 		BeforeStart(func() {
 			time.Sleep(time.Millisecond * 500)
-			if pathtool.IsExist(psock) {
+			if gocmd.IsExist(psock) {
 				os.Remove(psock)
 			}
 		})
 	app.ExecuteDefault("start")
 	// 初始化
-	if !pathtool.IsExist(cnfdir) {
+	if !gocmd.IsExist(cnfdir) {
 		os.Mkdir(cnfdir, 0o775)
 	}
-	if !pathtool.IsExist(piddir) {
+	if !gocmd.IsExist(piddir) {
 		os.Mkdir(piddir, 0o775)
 	}
-	if !pathtool.IsExist(logdir) {
+	if !gocmd.IsExist(logdir) {
 		os.Mkdir(logdir, 0o775)
 	}
-	if pathtool.IsExist(confileOld) {
+	if gocmd.IsExist(confileOld) {
 		os.Rename(confileOld, confile)
 	}
 	allconf = model.NewCnf(cnfdir)

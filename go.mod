@@ -5,6 +5,7 @@ go 1.23.0
 toolchain go1.24.0
 
 require (
+	github.com/xyzj/go-cmd v0.0.0-20250805023909-3505e4d128d6
 	github.com/xyzj/toolbox v0.0.0-20250709005517-f482765063ca
 	gopkg.in/yaml.v3 v3.0.1
 )

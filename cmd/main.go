@@ -9,17 +9,16 @@ import (
 
 	"extsvr/model"
 
-	"github.com/xyzj/toolbox/gocmd"
-	"github.com/xyzj/toolbox/pathtool"
+	"github.com/xyzj/go-cmd"
 )
 
 var (
-	psock   = pathtool.JoinPathFromHere("ssdctld.sock")
+	psock   = gocmd.JoinPathFromHere("ssdctld.sock")
 	version = "0.0.0"
 )
 
 func init() {
-	os.Setenv(strings.ToUpper(pathtool.GetExecNameWithoutExt())+"_NOT_PARSE_FLAG", "1")
+	os.Setenv(strings.ToUpper(gocmd.GetExecNameWithoutExt())+"_NOT_PARSE_FLAG", "1")
 }
 
 // 接收消息格式： fmt.Sprintf("%d|%s|%s|%s|",do,name,exec,params)
