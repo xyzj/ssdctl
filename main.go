@@ -22,6 +22,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const unknowProgram = "*** unknow program: "
+
 var systemd = `# 使用说明:
 # 1. copy %s.service to /etc/systemd/system
 # 2. sudo systemctl daemon-reload && sudo systemctl start ssdctld && sudo systemctl enable ssdctld
@@ -294,7 +296,7 @@ func recv(cli *unixClient) {
 				return
 			case model.JobStart: // 启动
 				if !ok && todo.Name != "all" {
-					cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
+					cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
 					continue
 				}
 				if todo.Name == "all" {
@@ -316,7 +318,7 @@ func recv(cli *unixClient) {
 				}
 			case model.JobStop: // 停止
 				if !ok && todo.Name != "all" {
-					cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
+					cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
 					continue
 				}
 				if todo.Name == "all" {
@@ -341,7 +343,7 @@ func recv(cli *unixClient) {
 				}
 			case model.JobEnable: // 启用
 				if !ok {
-					cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
+					cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
 					continue
 				}
 				allconf.SetEnable(todo.Name, true)
@@ -349,7 +351,7 @@ func recv(cli *unixClient) {
 				stdlog.Info("enable " + todo.Name)
 			case model.JobDisable: // 停用
 				if !ok {
-					cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
+					cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
 					continue
 				}
 				allconf.SetEnable(todo.Name, false)
@@ -427,7 +429,7 @@ func recv(cli *unixClient) {
 					})
 				default:
 					if !ok {
-						cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
+						cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
 						continue
 					}
 					cli.Send(todo.Name, statusSvr(todo.Name, exe))
@@ -464,7 +466,7 @@ func recv(cli *unixClient) {
 					})
 				default:
 					if !ok {
-						cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
+						cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
 						continue
 					}
 					cli.Send(todo.Name, listSvr(todo.Name, exe))
@@ -474,7 +476,7 @@ func recv(cli *unixClient) {
 				cli.Send("", allconf.Print())
 			case model.JobSetLevel: // 设置优先级
 				if !ok {
-					cli.Send(todo.Name, "*** unknow programs: `"+todo.Name+"`")
+					cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
 					continue
 				}
 				allconf.SetLevel(todo.Name, uint32(toolbox.String2Int32(todo.Exec, 10)))
