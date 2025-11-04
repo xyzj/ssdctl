@@ -200,7 +200,7 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 	if gocmd.IsExist(confileOld) {
 		os.Rename(confileOld, confile)
 	}
-	allconf = model.NewCnf(cnfdir)
+	allconf = model.NewCnf(cnfdir, piddir)
 	allconf.ConverFromOld()
 	allconf.FromFiles()
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -16,14 +17,16 @@ import (
 type Config struct {
 	locker sync.RWMutex
 	data   map[string]*ServiceParams
-	dir    string
+	cnfdir string
+	piddir string
 }
 
-func NewCnf(dir string) *Config {
+func NewCnf(cnf, pid string) *Config {
 	return &Config{
 		locker: sync.RWMutex{},
 		data:   make(map[string]*ServiceParams),
-		dir:    dir,
+		cnfdir: cnf,
+		piddir: pid,
 	}
 }
 
@@ -51,9 +54,9 @@ func (c *Config) Len() int {
 func (c *Config) FromFiles() {
 	c.locker.Lock()
 	defer c.locker.Unlock()
-	fsd, err := os.ReadDir(c.dir)
+	fsd, err := os.ReadDir(c.cnfdir)
 	if err != nil {
-		println(c.dir + " - " + err.Error())
+		println(c.cnfdir + " - " + err.Error())
 		return
 	}
 	if c.data == nil {
@@ -70,7 +73,7 @@ func (c *Config) FromFiles() {
 		if filepath.Ext(fs.Name()) != ".yaml" {
 			continue
 		}
-		b, err := os.ReadFile(filepath.Join(c.dir, fs.Name()))
+		b, err := os.ReadFile(filepath.Join(c.cnfdir, fs.Name()))
 		if err != nil {
 			println(fs.Name() + " - " + err.Error())
 			continue
@@ -81,7 +84,13 @@ func (c *Config) FromFiles() {
 			println(fs.Name() + " - " + err.Error())
 			continue
 		}
-		c.data[strings.TrimSuffix(fs.Name(), ".yaml")] = c.ensureDefault(s)
+		svrname := strings.TrimSuffix(fs.Name(), ".yaml")
+		if b, err := os.ReadFile(filepath.Join(c.piddir, svrname+".pid")); err == nil {
+			pidstr := strings.TrimSpace(string(b))
+			pid, _ := strconv.Atoi(pidstr)
+			s.Pid = pid
+		}
+		c.data[svrname] = c.ensureDefault(s)
 	}
 }
 
@@ -96,7 +105,7 @@ func (c *Config) AddItem(name string, svr *ServiceParams) error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(filepath.Join(c.dir, name+".yaml"), b, 0o664)
+	err = os.WriteFile(filepath.Join(c.cnfdir, name+".yaml"), b, 0o664)
 	if err != nil {
 		return err
 	}
@@ -111,7 +120,7 @@ func (c *Config) DelItem(name string) error {
 		return errors.New("service " + name + " not exist")
 	}
 	delete(c.data, name)
-	err := os.Remove(filepath.Join(c.dir, name+".yaml"))
+	err := os.Remove(filepath.Join(c.cnfdir, name+".yaml"))
 	if err != nil {
 		if strings.Contains(err.Error(), "no such file") {
 			return nil
@@ -138,7 +147,7 @@ func (c *Config) SetLevel(name string, l uint32) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(c.dir, name+".yaml"), b, 0o664)
+	return os.WriteFile(filepath.Join(c.cnfdir, name+".yaml"), b, 0o664)
 }
 
 func (c *Config) SetEnable(name string, enable bool) error {
@@ -156,7 +165,7 @@ func (c *Config) SetEnable(name string, enable bool) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(c.dir, name+".yaml"), b, 0o664)
+	return os.WriteFile(filepath.Join(c.cnfdir, name+".yaml"), b, 0o664)
 }
 
 func (c *Config) ForEach(f func(key string, value *ServiceParams) bool) {
@@ -200,7 +209,7 @@ func (c *Config) ConverFromOld() {
 		return
 	}
 	for k, v := range a {
-		sp := filepath.Join(c.dir, k+".yaml")
+		sp := filepath.Join(c.cnfdir, k+".yaml")
 		if pathtool.IsExist(sp) {
 			continue
 		}
