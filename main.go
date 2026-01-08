@@ -104,9 +104,10 @@ func (uc *unixClient) Send(name, s string) {
 func main() {
 	if !*nologger {
 		stdlog = logger.NewLogger(logger.LogInfo,
-			logger.OptFileDays(10),
-			logger.OptFileDir(logdir),
-			logger.OptFilename("ssdctld"))
+			logger.WithBufferSize(0),
+			logger.WithFilename(filepath.Join(logdir, "ssdctld.log")),
+			logger.WithMaxBackups(3),
+			logger.WithMaxSize(1024*1024*500))
 	} else {
 		stdlog = logger.NewNilLogger()
 	}
