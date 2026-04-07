@@ -3,7 +3,7 @@ module extsvr
 go 1.24.0
 
 require (
-	github.com/xyzj/go-cmd v0.0.0-20250805023909-3505e4d128d6
+	github.com/xyzj/go-cmd v0.0.0-20260407010251-04c180418938
 	github.com/xyzj/toolbox v0.0.0-20260108074518-2adcd054d04b
 	gopkg.in/yaml.v3 v3.0.1
 )

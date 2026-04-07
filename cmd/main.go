@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -9,11 +10,10 @@ import (
 
 	"extsvr/model"
 
-	"github.com/xyzj/go-cmd"
+	gocmd "github.com/xyzj/go-cmd"
 )
 
 var (
-	psock   = gocmd.JoinPathFromHere("ssdctld.sock")
 	version = "0.0.0"
 )
 
@@ -147,24 +147,27 @@ func send2svr(params ...string) {
 	l := len(params)
 	// 先进行一轮参数合法判断
 	switch params[0] {
-	case "start", "stop", "enable", "disable", "restart":
+	case model.NameStart, model.NameStop, model.NameEnable, model.NameDisable, model.NameRestart:
 		if l < 2 {
 			println("Usage:\n\t " + os.Args[0] + " " + params[0] + " app1 app2 ...")
 			return
 		}
-	case "status", "remove":
+	case model.NameStatus, model.NameRemove:
 		if l < 2 {
 			println("Usage:\n\t " + os.Args[0] + " " + params[0] + " app")
 			return
 		}
-	case "create", "startlevel":
+	case model.NameCreate, model.NameStartLevel:
 		if l < 3 {
 			println("Usage:\n\t " + os.Args[0] + " create appname execpath param1 param2 ...")
 			return
 		}
 	}
+	pid := os.Getpid()
+	laddr, _ := net.ResolveUnixAddr("unixgram", fmt.Sprintf(model.CliSock, pid))
+	raddr, _ := net.ResolveUnixAddr("unixgram", model.SvrSock)
 	// 连接unix socket
-	conn, err := net.Dial("unix", psock)
+	conn, err := net.ListenUnixgram("unixgram", laddr)
 	if err != nil {
 		println(err.Error())
 		return
@@ -179,58 +182,58 @@ func send2svr(params ...string) {
 		buf := make([]byte, 4096)
 		for {
 			// conn.SetReadDeadline(time.Now().Add(time.Second * 2))
-			n, err := conn.Read(buf)
+			n, _, err := conn.ReadFromUnix(buf)
 			if err != nil {
-				if strings.Contains(err.Error(), net.ErrClosed.Error()) ||
-					strings.Contains(err.Error(), "connection reset by peer") ||
-					strings.Contains(err.Error(), "EOF") { // err == io.EOF ||
-					return
-				}
+				// if strings.Contains(err.Error(), net.ErrClosed.Error()) ||
+				// 	strings.Contains(err.Error(), "connection reset by peer") ||
+				// 	strings.Contains(err.Error(), "EOF") { // err == io.EOF ||
+				// 	return
+				// }
 				println(err.Error())
+				os.Exit(1)
 				return
 			}
-			ss := strings.Split(string(buf[:n]), "\x00")
-			for _, s := range ss {
-				if len(s) == 0 {
-					continue
-				}
+			if s := string(buf[:n]); s == "END" {
+				os.Exit(0)
+				return
+			} else {
 				println(s + "\n")
 			}
 		}
 	}()
 	// 处理命令
 	switch params[0] {
-	case "start":
+	case model.NameStart:
 		for _, v := range params[1:] {
 			todo := &model.ToDo{
 				Name: v,
 				Do:   model.JobStart,
 			}
-			conn.Write(todo.ToJSON())
+			conn.WriteToUnix(todo.ToJSON(), raddr)
 			time.Sleep(time.Millisecond * 200)
 		}
-	case "stop":
+	case model.NameStop:
 		for _, v := range params[1:] {
 			todo := &model.ToDo{
 				Name: v,
 				Do:   model.JobStop,
 			}
-			conn.Write(todo.ToJSON())
+			conn.WriteToUnix(todo.ToJSON(), raddr)
 			time.Sleep(time.Millisecond * 200)
 		}
-	case "restart":
+	case model.NameRestart:
 		for _, v := range params[1:] {
 			todo := &model.ToDo{
 				Name: v,
 				Do:   model.JobStop,
 			}
-			conn.Write(todo.ToJSON())
+			conn.WriteToUnix(todo.ToJSON(), raddr)
 			time.Sleep(time.Millisecond * 200)
 			todo = &model.ToDo{
 				Name: v,
 				Do:   model.JobStart,
 			}
-			conn.Write(todo.ToJSON())
+			conn.WriteToUnix(todo.ToJSON(), raddr)
 			// todo := &model.ToDo{
 			// 	Name: v,
 			// 	Do:   model.JobRestart,
@@ -238,48 +241,48 @@ func send2svr(params ...string) {
 			// conn.Write(todo.ToJSON())
 			time.Sleep(time.Millisecond * 200)
 		}
-	case "enable":
+	case model.NameEnable:
 		for _, v := range params[1:] {
 			todo := &model.ToDo{
 				Name: v,
 				Do:   model.JobEnable,
 			}
-			conn.Write(todo.ToJSON())
+			conn.WriteToUnix(todo.ToJSON(), raddr)
 			time.Sleep(time.Millisecond * 200)
 		}
-	case "disable":
+	case model.NameDisable:
 		for _, v := range params[1:] {
 			todo := &model.ToDo{
 				Name: v,
 				Do:   model.JobDisable,
 			}
-			conn.Write(todo.ToJSON())
+			conn.WriteToUnix(todo.ToJSON(), raddr)
 			time.Sleep(time.Millisecond * 200)
 		}
-	case "status":
+	case model.NameStatus:
 		todo := &model.ToDo{
 			Name: params[1],
 			Do:   model.JobStatus,
 		}
-		conn.Write(todo.ToJSON())
+		conn.WriteToUnix(todo.ToJSON(), raddr)
 		time.Sleep(time.Millisecond * 200)
-	case "remove":
+	case model.NameRemove:
 		todo := &model.ToDo{
 			Name: params[1],
 			Do:   model.JobRemove,
 		}
-		conn.Write(todo.ToJSON())
+		conn.WriteToUnix(todo.ToJSON(), raddr)
 		time.Sleep(time.Millisecond * 200)
-	case "create":
+	case model.NameCreate:
 		todo := &model.ToDo{
 			Name:   params[1],
 			Do:     model.JobCreate,
 			Exec:   params[2],
 			Params: params[3:],
 		}
-		conn.Write(todo.ToJSON())
+		conn.WriteToUnix(todo.ToJSON(), raddr)
 		time.Sleep(time.Millisecond * 200)
-	case "list":
+	case model.NameList:
 		var todo *model.ToDo
 		if len(params) > 1 {
 			todo = &model.ToDo{
@@ -291,33 +294,33 @@ func send2svr(params ...string) {
 				Do: model.JobList,
 			}
 		}
-		conn.Write(todo.ToJSON())
+		conn.WriteToUnix(todo.ToJSON(), raddr)
 		time.Sleep(time.Millisecond * 200)
-	case "update":
+	case model.NameUpdate:
 		todo := &model.ToDo{
 			Do: model.JobUpate,
 		}
-		conn.Write(todo.ToJSON())
+		conn.WriteToUnix(todo.ToJSON(), raddr)
 		time.Sleep(time.Millisecond * 200)
-	case "shutdown":
+	case model.NameShutdown:
 		todo := &model.ToDo{
 			Do: model.JobShutdown,
 		}
-		conn.Write(todo.ToJSON())
+		conn.WriteToUnix(todo.ToJSON(), raddr)
 		time.Sleep(time.Millisecond * 200)
-	case "startlevel":
+	case model.NameStartLevel:
 		todo := &model.ToDo{
 			Name: params[1],
 			Do:   model.JobSetLevel,
 			Exec: params[2],
 		}
-		conn.Write(todo.ToJSON())
+		conn.WriteToUnix(todo.ToJSON(), raddr)
 		time.Sleep(time.Millisecond * 200)
 	}
 	time.Sleep(time.Millisecond * 200)
 	clo := &model.ToDo{
-		Do: model.JobClose,
+		Do: model.JobEnd,
 	}
-	conn.Write(clo.ToJSON())
+	conn.WriteToUnix(clo.ToJSON(), raddr)
 	locker.Wait()
 }

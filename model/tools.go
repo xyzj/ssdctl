@@ -1,13 +1,11 @@
 package model
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"github.com/xyzj/toolbox/pathtool"
+	"syscall"
 )
 
 type ProcessInfo struct {
@@ -17,8 +15,22 @@ type ProcessInfo struct {
 }
 
 // ProcessExist only for linux
-func ProcessExist(pid int) bool {
-	return pathtool.IsExist(fmt.Sprintf("/proc/%d", pid))
+func ProcessExist(pid int) bool { // 发送信号 0，检查进程是否存在
+	err := syscall.Kill(pid, 0)
+
+	if err == nil {
+		return true // 进程存在且你有权限
+	}
+
+	if err == syscall.EPERM {
+		return true // 进程存在，但你没权限（说明它肯定活着）
+	}
+
+	if err == syscall.ESRCH {
+		return false // 进程不存在
+	}
+
+	return false
 }
 
 // QueryProcess only for linux

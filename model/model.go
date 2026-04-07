@@ -4,6 +4,11 @@ import (
 	"encoding/json"
 )
 
+const (
+	SvrSock = "@ssdctld.sock"
+	CliSock = "@ssdctl_%d.sock"
+)
+
 type ToDo struct {
 	Name   string   `json:"name"`
 	Exec   string   `json:"exec,omitempty"`
@@ -17,7 +22,7 @@ func (td *ToDo) ToJSON() []byte {
 		println("command marshal error:" + err.Error())
 		return []byte{0}
 	}
-	b = append(b, 0)
+	// b = append(b, 0)
 	return b
 }
 
@@ -40,7 +45,6 @@ type ServiceParams struct {
 	Pid        int      `yaml:"-"`
 	StartSec   uint32   `yaml:"startsec"`
 	Priority   uint32   `yaml:"priority"`
-	Log2file   bool     `yaml:"log2file,omitempty"`
 	Enable     bool     `yaml:"enable"`
 	ManualStop bool     `yaml:"-"`
 }
@@ -48,7 +52,8 @@ type ServiceParams struct {
 type Jobs byte
 
 const (
-	JobClose Jobs = iota
+	JobShutdown Jobs = iota
+	JobEnd
 	JobStart
 	JobStop
 	JobRestart
@@ -59,6 +64,23 @@ const (
 	JobRemove
 	JobList
 	JobUpate
-	JobShutdown
 	JobSetLevel
+)
+
+const (
+	NameAll        = "all"
+	NameDisable    = "disable"
+	NameEnable     = "enable"
+	NameStatus     = "status"
+	NameStart      = "start"
+	NameStop       = "stop"
+	NameStopped    = "stopped"
+	NameRestart    = "restart"
+	NameRemove     = "remove"
+	NameCreate     = "create"
+	NameList       = "list"
+	NameRunning    = "running"
+	NameShutdown   = "shutdown"
+	NameStartLevel = "startlevel"
+	NameUpdate     = "update"
 )

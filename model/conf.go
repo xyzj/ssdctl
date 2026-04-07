@@ -2,7 +2,6 @@ package model
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -19,6 +18,17 @@ type Config struct {
 	data   map[string]*ServiceParams
 	cnfdir string
 	piddir string
+}
+
+func cloneServiceParams(src *ServiceParams) *ServiceParams {
+	if src == nil {
+		return nil
+	}
+	dst := *src
+	dst.Params = append([]string(nil), src.Params...)
+	dst.Replace = append([]string(nil), src.Replace...)
+	dst.Env = append([]string(nil), src.Env...)
+	return &dst
 }
 
 func NewCnf(cnf, pid string) *Config {
@@ -46,8 +56,8 @@ func (c *Config) ensureDefault(svr *ServiceParams) *ServiceParams {
 }
 
 func (c *Config) Len() int {
-	c.locker.Lock()
-	defer c.locker.Unlock()
+	c.locker.RLock()
+	defer c.locker.RUnlock()
 	return len(c.data)
 }
 
@@ -101,7 +111,8 @@ func (c *Config) AddItem(name string, svr *ServiceParams) error {
 	if ok {
 		return errors.New("service " + name + " already exist")
 	}
-	b, err := yaml.Marshal(c.ensureDefault(svr))
+	s := c.ensureDefault(cloneServiceParams(svr))
+	b, err := yaml.Marshal(s)
 	if err != nil {
 		return err
 	}
@@ -109,7 +120,7 @@ func (c *Config) AddItem(name string, svr *ServiceParams) error {
 	if err != nil {
 		return err
 	}
-	c.data[name] = svr
+	c.data[name] = s
 	return nil
 }
 
@@ -133,7 +144,22 @@ func (c *Config) GetItem(name string) (*ServiceParams, bool) {
 	c.locker.RLock()
 	defer c.locker.RUnlock()
 	s, ok := c.data[name]
-	return s, ok
+	if !ok {
+		return nil, false
+	}
+	return cloneServiceParams(s), true
+}
+
+func (c *Config) SetRuntime(name string, pid int, manualStop bool) error {
+	c.locker.Lock()
+	defer c.locker.Unlock()
+	s, ok := c.data[name]
+	if !ok {
+		return errors.New("service " + name + " not found")
+	}
+	s.Pid = pid
+	s.ManualStop = manualStop
+	return nil
 }
 func (c *Config) SetLevel(name string, l uint32) error {
 	c.locker.Lock()
@@ -170,20 +196,23 @@ func (c *Config) SetEnable(name string, enable bool) error {
 
 func (c *Config) ForEach(f func(key string, value *ServiceParams) bool) {
 	c.locker.RLock()
-	defer func() {
-		recover()
-		c.locker.RUnlock()
-	}()
 	ss := make([]*ServiceParams, 0, len(c.data))
 	for k, v := range c.data {
-		v.name = k
-		ss = append(ss, v)
+		x := cloneServiceParams(v)
+		x.name = k
+		ss = append(ss, x)
 	}
+	c.locker.RUnlock()
 	sort.Slice(ss, func(i, j int) bool {
-		return fmt.Sprintf("%04d%s", ss[i].Priority, ss[i].name) < fmt.Sprintf("%04d%s", ss[j].Priority, ss[j].name)
+		if ss[i].Priority == ss[j].Priority {
+			return ss[i].name < ss[j].name
+		}
+		return ss[i].Priority < ss[j].Priority
 	})
 	for _, s := range ss {
-		f(s.name, s)
+		if !f(s.name, s) {
+			break
+		}
 	}
 }
 

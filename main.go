@@ -17,6 +17,7 @@ import (
 
 	gocmd "github.com/xyzj/go-cmd"
 	"github.com/xyzj/toolbox"
+	"github.com/xyzj/toolbox/json"
 	"github.com/xyzj/toolbox/logger"
 	"github.com/xyzj/toolbox/loopfunc"
 	"gopkg.in/yaml.v3"
@@ -56,13 +57,13 @@ var (
 
 	stdlog     logger.Logger
 	exename    = gocmd.GetExecName()
-	psock      = gocmd.JoinPathFromHere("ssdctld.sock")
 	confile    = gocmd.JoinPathFromHere("ssdctld.yaml")
 	confileOld = gocmd.JoinPathFromHere("extsvr.yaml")
 	logdir     = gocmd.JoinPathFromHere("log")
 	piddir     = gocmd.JoinPathFromHere("pid.d")
 	cnfdir     = gocmd.JoinPathFromHere("cnf.d")
 	allconf    *model.Config
+	uln        *net.UnixConn
 
 	app     *gocmd.Program
 	version = "0.0.0"
@@ -72,33 +73,28 @@ var (
 )
 
 type unixClient struct {
-	conn *net.UnixConn
+	conn *net.UnixAddr
 	buf  []byte
 }
 
 func (uc *unixClient) Send(name, s string) {
-	b := strings.Builder{}
-	bb := strings.Split(s, "\n")
-	for k, v := range bb {
-		if strings.HasPrefix(v, "[") ||
-			strings.HasPrefix(v, "<") ||
-			strings.HasPrefix(v, ">") ||
-			strings.HasPrefix(v, "+") ||
-			strings.HasPrefix(v, "-") ||
-			strings.HasPrefix(v, "*") {
-			b.WriteString(v)
-		} else {
-			b.WriteString("    " + v)
-		}
-		if k < len(bb)-1 {
-			b.WriteByte(10)
-		}
+	if len(s) == 0 {
+		return
 	}
-	b.WriteByte(0)
-	// if !strings.HasSuffix(s, "\x00") {
-	// 	s += "\x00"
-	// }
-	uc.conn.Write([]byte(b.String()))
+	b := strings.Builder{}
+	for v := range strings.SplitSeq(s, "\n") {
+		if len(v) == 0 {
+			continue
+		}
+		switch v[0] {
+		case '[', '<', '>', '+', '-', '*':
+			b.WriteString(v)
+		default:
+			b.WriteString("  " + v)
+		}
+		b.WriteByte(10)
+	}
+	uln.WriteToUnix(json.Bytes(b.String()), uc.conn)
 }
 
 func main() {
@@ -148,7 +144,7 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 					uname = u.Username
 					ugrp = g.Name
 				}
-				os.WriteFile(gocmd.JoinPathFromHere(exename+".service"), []byte(fmt.Sprintf(systemd,
+				os.WriteFile(gocmd.JoinPathFromHere(exename+".service"), json.Bytes(fmt.Sprintf(systemd,
 					exename,
 					uname,
 					ugrp,
@@ -156,7 +152,7 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 					gocmd.GetExecFullpath(),
 					gocmd.GetExecFullpath(),
 					gocmd.GetExecFullpath(),
-					psock,
+					model.SvrSock,
 				)), 0o664)
 				println(fmt.Sprintf(`create systemd service file done.
 1. copy "%[1]s.service" to "/etc/systemd/system/"
@@ -177,15 +173,6 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 				println("add PATH done")
 				return 0
 			},
-		}).
-		AfterStop(func() {
-			os.Remove(psock)
-		}).
-		BeforeStart(func() {
-			time.Sleep(time.Millisecond * 500)
-			if gocmd.IsExist(psock) {
-				os.Remove(psock)
-			}
 		})
 	app.ExecuteDefault("start")
 	// 初始化
@@ -205,62 +192,51 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 	allconf.ConverFromOld()
 	allconf.FromFiles()
 
-	chrecv := make(chan *unixClient)
 	// 后台处理
 	if !*nokeepalive {
 		go loopfunc.LoopFunc(func(params ...any) {
 			td := time.Second * time.Duration(min(max(toolbox.String2Int(os.Getenv("SSDCTLD_CHECK_SECONDS"), 10), 60), 600))
-			t := time.NewTicker(td)
-			for {
-				select {
-				case <-t.C:
-					// 检查所有enable==true && manualStop==false的服务状态
-					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
-						if !value.Enable || value.ManualStop {
-							return true
-						}
-						if _, _, ok := svrIsRunning(value); ok {
-							return true
-						}
-						s, _ := startSvrFork(key, value)
-						stdlog.Info(key + " not running, restart... " + s)
+			t := time.NewTimer(td)
+			for range t.C {
+				procCache := map[string][]*model.ProcessInfo{}
+				// 检查所有enable==true && manualStop==false的服务状态
+				allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+					if !value.Enable || value.ManualStop {
 						return true
-					})
-				case cli := <-chrecv:
-					t.Stop()
-					recv(cli)
-					t.Reset(td)
-				}
+					}
+					if _, _, ok := svrIsRunningCached(value, procCache); ok {
+						return true
+					}
+					s, _ := startSvrFork(key, value)
+					delete(procCache, filepath.Base(value.Exec))
+					stdlog.Info(key + " not running, restart... " + s)
+					return true
+				})
+				t.Reset(td)
 			}
 		}, "recv", nil) // stdlog.DefaultWriter())
 	}
 	// 开始监听
 	loopfunc.LoopFunc(func(params ...any) {
-		uln, err := net.ListenUnix("unix", &net.UnixAddr{Name: psock, Net: "unix"})
+		var err error
+		uln, err = net.ListenUnixgram("unixgram", &net.UnixAddr{Name: model.SvrSock, Net: "unixgram"})
 		if err != nil {
-			stdlog.Error("listen from unix socket error: " + err.Error())
+			stdlog.Error("listen from unixgram error: " + err.Error())
 			app.Exit(1)
 		}
-		uln.SetUnlinkOnClose(true)
-		stdlog.Info("start listen from unix socket:" + psock)
+		stdlog.Info("start receiving from unix socket:" + model.SvrSock)
+		buf := make([]byte, 2048)
 		// 监听客户端
 		for {
-			fd, err := uln.AcceptUnix()
+			n, cli, err := uln.ReadFromUnix(buf)
 			if err != nil {
-				if strings.Contains(err.Error(), net.ErrClosed.Error()) {
-					stdlog.Error("listener close")
-					panic(fmt.Errorf("listener close"))
-				}
+				stdlog.Error("read from unix socket error: " + err.Error())
 				continue
 			}
-			chrecv <- &unixClient{
-				conn: fd,
-				buf:  make([]byte, 2048),
-			}
-			// recv(&unixClient{
-			// 	conn: fd,
-			// 	buf:  make([]byte, 2048),
-			// })
+			recv(&unixClient{
+				conn: cli,
+				buf:  buf[:n],
+			})
 		}
 	}, "main proc", nil) // stdlog.DefaultWriter())
 }
@@ -270,220 +246,206 @@ func recv(cli *unixClient) {
 		if err := recover(); err != nil {
 			println("recv recover:" + err.(error).Error())
 		}
-		cli.conn.Close()
 	}()
-	for {
-		cli.conn.SetReadDeadline(time.Now().Add(time.Minute))
-		n, err := cli.conn.Read(cli.buf)
-		if err != nil {
-			// if err != io.EOF {
-			println("recv error: " + err.Error())
-			// }
+	if len(cli.buf) == 0 {
+		return
+	}
+	todo := &model.ToDo{}
+	err := todo.FromJSON(cli.buf)
+	if err != nil {
+		cli.Send("error", err.Error())
+		uln.WriteToUnix(json.Bytes("END"), cli.conn)
+		return
+	}
+	exe, ok := allconf.GetItem(todo.Name)
+	switch todo.Do {
+	case model.JobEnd: // 关闭
+		uln.WriteToUnix(json.Bytes("END"), cli.conn)
+		return
+	case model.JobStart: // 启动
+		if !ok && todo.Name != model.NameAll {
+			cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
 			return
 		}
-		// 切割
-		for _, v := range strings.Split(string(cli.buf[:n]), "\x00") {
-			if len(v) == 0 {
-				continue
-			}
-			todo := &model.ToDo{}
-			err = todo.FromJSON([]byte(v))
-			if err != nil {
-				continue
-			}
-			exe, ok := allconf.GetItem(todo.Name)
-			switch todo.Do {
-			case model.JobClose: // 关闭
-				return
-			case model.JobStart: // 启动
-				if !ok && todo.Name != "all" {
-					cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
-					continue
+		if todo.Name == model.NameAll {
+			stdlog.Info("start all")
+			allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+				if !value.Enable {
+					return true
 				}
-				if todo.Name == "all" {
-					stdlog.Info("start all")
-					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
-						if !value.Enable {
-							return true
-						}
-						cli.Send(todo.Name, formatOutput(todo.Name, "STARTING...", "||> "+value.Exec+" "+strings.Join(value.Params, " "))) //"[STARTING...] "+todo.Name)
-						s, _ := startSvrFork(key, value)
-						cli.Send(key, s)
-						return true
-					})
-				} else {
-					cli.Send(todo.Name, formatOutput(todo.Name, "STARTING...", "||> "+exe.Exec+" "+strings.Join(exe.Params, " "))) //"[STARTING...] "+todo.Name)
-					s, _ := startSvrFork(todo.Name, exe)
-					cli.Send(todo.Name, s)
-					stdlog.Info(s)
-				}
-			case model.JobStop: // 停止
-				if !ok && todo.Name != "all" {
-					cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
-					continue
-				}
-				if todo.Name == "all" {
-					stdlog.Info("stop all")
-					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
-						if !value.Enable {
-							return true
-						}
-						if strings.Contains(value.Exec, "ttyd") ||
-							strings.Contains(value.Exec, "caddy") ||
-							strings.Contains(value.Exec, "dragonfly") ||
-							strings.Contains(value.Exec, "stmq") {
-							return true
-						}
-						cli.Send(key, stopSvrFork(key, value))
-						return true
-					})
-				} else {
-					s := stopSvrFork(todo.Name, exe)
-					cli.Send(todo.Name, s)
-					stdlog.Warning(s)
-				}
-			case model.JobEnable: // 启用
-				if !ok {
-					cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
-					continue
-				}
-				allconf.SetEnable(todo.Name, true)
-				cli.Send(todo.Name, ">>> "+todo.Name+" enabled")
-				stdlog.Info("enable " + todo.Name)
-			case model.JobDisable: // 停用
-				if !ok {
-					cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
-					continue
-				}
-				allconf.SetEnable(todo.Name, false)
-				cli.Send(todo.Name, ">>> "+todo.Name+" disabled")
-				stdlog.Info("disable " + todo.Name)
-			case model.JobRemove: // 删除服务
-				if err := allconf.DelItem(todo.Name); err != nil {
-					cli.Send(todo.Name, "--- "+todo.Name+" remove failed: "+err.Error())
-				} else {
-					cli.Send(todo.Name, "--- "+todo.Name+" removed")
-					stdlog.Info("remove " + todo.Name)
-				}
-			case model.JobCreate: // 新增服务
-				if todo.Name == "all" ||
-					todo.Name == "enable" ||
-					todo.Name == "disable" ||
-					todo.Name == "running" ||
-					todo.Name == "stopped" {
-					cli.Send("all", "can not use `"+todo.Name+"` as application's name")
-					return
-				}
-
-				if err := allconf.AddItem(todo.Name, &model.ServiceParams{
-					Exec:   todo.Exec,
-					Params: todo.Params,
-					Enable: true,
-				}); err != nil {
-					cli.Send(todo.Name, "+++ "+todo.Name+" add failed: "+err.Error())
-				} else {
-					cli.Send(todo.Name, "+++ "+todo.Name+" added")
-					stdlog.Info("add " + todo.Name)
-				}
-			case model.JobStatus: // 状态查询
-				switch todo.Name {
-				case "running":
-					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
-						_, s, ok := svrIsRunning(value)
-						if ok {
-							cli.Send(key, formatOutput(key, "PS", s)) //"[PS\t"+key+"]:\n"+s)
-						}
-						return true
-					})
-				case "disable":
-					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
-						if value.Enable {
-							return true
-						}
-						_, s, ok := svrIsRunning(value)
-						if ok {
-							cli.Send(key, formatOutput(key, "PS", s)) //"[PS\t"+key+"]:\n"+s)
-						} else {
-							cli.Send(key, formatOutput(key, "PS", "not running"))
-						}
-						return true
-					})
-				case "enable":
-					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
-						if !value.Enable {
-							return true
-						}
-						_, s, ok := svrIsRunning(value)
-						if ok {
-							cli.Send(key, formatOutput(key, "PS", s)) //"[PS\t"+key+"]:\n"+s)
-						} else {
-							cli.Send(key, formatOutput(key, "PS", "not running"))
-						}
-						return true
-					})
-				case "all":
-					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
-						if value.Enable {
-							cli.Send(key, statusSvr(key, value))
-						}
-						return true
-					})
-				default:
-					if !ok {
-						cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
-						continue
-					}
-					cli.Send(todo.Name, statusSvr(todo.Name, exe))
-				}
-			case model.JobList:
-				switch todo.Name {
-				case "enable":
-					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
-						if value.Enable {
-							cli.Send(key, listSvr(key, value))
-						}
-						return true
-					})
-				case "disable":
-					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
-						if !value.Enable {
-							cli.Send(key, listSvr(key, value))
-						}
-						return true
-					})
-				case "stopped":
-					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
-						if value.Enable && value.ManualStop {
-							cli.Send(key, listSvr(key, value))
-						}
-						return true
-					})
-				case "":
-					cli.Send("", allconf.Print())
-				case "all":
-					allconf.ForEach(func(key string, value *model.ServiceParams) bool {
-						cli.Send(key, listSvr(key, value))
-						return true
-					})
-				default:
-					if !ok {
-						cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
-						continue
-					}
-					cli.Send(todo.Name, listSvr(todo.Name, exe))
-				}
-			case model.JobUpate: // 列出所有，刷新
-				allconf.FromFiles()
-				cli.Send("", allconf.Print())
-			case model.JobSetLevel: // 设置优先级
-				if !ok {
-					cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
-					continue
-				}
-				allconf.SetLevel(todo.Name, uint32(toolbox.String2Int32(todo.Exec, 10)))
-				cli.Send(todo.Name, ">>> set "+todo.Name+" start level to "+strconv.FormatUint(uint64(toolbox.String2Int32(todo.Exec, 10)), 10))
-			}
+				cli.Send(todo.Name, formatOutput(todo.Name, "STARTING...", "||> "+value.Exec+" "+strings.Join(value.Params, " "))) //"[STARTING...] "+todo.Name)
+				s, _ := startSvrFork(key, value)
+				cli.Send(key, s)
+				return true
+			})
+		} else {
+			cli.Send(todo.Name, formatOutput(todo.Name, "STARTING...", "||> "+exe.Exec+" "+strings.Join(exe.Params, " "))) //"[STARTING...] "+todo.Name)
+			s, _ := startSvrFork(todo.Name, exe)
+			cli.Send(todo.Name, s)
+			stdlog.Info(s)
 		}
+	case model.JobStop: // 停止
+		if !ok && todo.Name != model.NameAll {
+			cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
+			return
+		}
+		if todo.Name == model.NameAll {
+			stdlog.Info("stop all")
+			allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+				if !value.Enable {
+					return true
+				}
+				if strings.Contains(value.Exec, "ttyd") ||
+					strings.Contains(value.Exec, "caddy") ||
+					strings.Contains(value.Exec, "dragonfly") ||
+					strings.Contains(value.Exec, "stmq") {
+					return true
+				}
+				cli.Send(key, stopSvrFork(key, value))
+				return true
+			})
+		} else {
+			s := stopSvrFork(todo.Name, exe)
+			cli.Send(todo.Name, s)
+			stdlog.Warning(s)
+		}
+	case model.JobEnable: // 启用
+		if !ok {
+			cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
+			return
+		}
+		allconf.SetEnable(todo.Name, true)
+		cli.Send(todo.Name, ">>> "+todo.Name+" enabled")
+		stdlog.Info("enable " + todo.Name)
+	case model.JobDisable: // 停用
+		if !ok {
+			cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
+			return
+		}
+		allconf.SetEnable(todo.Name, false)
+		cli.Send(todo.Name, ">>> "+todo.Name+" disabled")
+		stdlog.Info("disable " + todo.Name)
+	case model.JobRemove: // 删除服务
+		if err := allconf.DelItem(todo.Name); err != nil {
+			cli.Send(todo.Name, "--- "+todo.Name+" remove failed: "+err.Error())
+		} else {
+			cli.Send(todo.Name, "--- "+todo.Name+" removed")
+			stdlog.Info("remove " + todo.Name)
+		}
+	case model.JobCreate: // 新增服务
+		switch todo.Name {
+		case model.NameAll, model.NameDisable, model.NameEnable, model.NameStatus, model.NameStart, model.NameStop,
+			model.NameStopped, model.NameRestart, model.NameRemove, model.NameCreate, model.NameList, model.NameRunning:
+			cli.Send("all", "can not use `"+todo.Name+"` as application's name")
+			return
+		}
+		if err := allconf.AddItem(todo.Name, &model.ServiceParams{
+			Exec:   todo.Exec,
+			Params: todo.Params,
+			Enable: true,
+		}); err != nil {
+			cli.Send(todo.Name, "+++ "+todo.Name+" add failed: "+err.Error())
+		} else {
+			cli.Send(todo.Name, "+++ "+todo.Name+" added")
+			stdlog.Info("add " + todo.Name)
+		}
+	case model.JobStatus: // 状态查询
+		switch todo.Name {
+		case model.NameRunning:
+			allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+				_, s, ok := svrIsRunning(value)
+				if ok {
+					cli.Send(key, formatOutput(key, "PS", s)) //"[PS\t"+key+"]:\n"+s)
+				}
+				return true
+			})
+		case model.NameDisable:
+			allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+				if value.Enable {
+					return true
+				}
+				_, s, ok := svrIsRunning(value)
+				if ok {
+					cli.Send(key, formatOutput(key, "PS", s)) //"[PS\t"+key+"]:\n"+s)
+				} else {
+					cli.Send(key, formatOutput(key, "PS", "not running"))
+				}
+				return true
+			})
+		case model.NameEnable:
+			allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+				if !value.Enable {
+					return true
+				}
+				_, s, ok := svrIsRunning(value)
+				if ok {
+					cli.Send(key, formatOutput(key, "PS", s)) //"[PS\t"+key+"]:\n"+s)
+				} else {
+					cli.Send(key, formatOutput(key, "PS", "not running"))
+				}
+				return true
+			})
+		case model.NameAll:
+			allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+				if value.Enable {
+					cli.Send(key, statusSvr(key, value))
+				}
+				return true
+			})
+		default:
+			if !ok {
+				cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
+				return
+			}
+			cli.Send(todo.Name, statusSvr(todo.Name, exe))
+		}
+	case model.JobList:
+		switch todo.Name {
+		case model.NameEnable:
+			allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+				if value.Enable {
+					cli.Send(key, listSvr(key, value))
+				}
+				return true
+			})
+		case model.NameDisable:
+			allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+				if !value.Enable {
+					cli.Send(key, listSvr(key, value))
+				}
+				return true
+			})
+		case model.NameStopped:
+			allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+				if value.Enable && value.ManualStop {
+					cli.Send(key, listSvr(key, value))
+				}
+				return true
+			})
+		case "":
+			cli.Send("", allconf.Print())
+		case model.NameAll:
+			allconf.ForEach(func(key string, value *model.ServiceParams) bool {
+				cli.Send(key, listSvr(key, value))
+				return true
+			})
+		default:
+			if !ok {
+				cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
+				return
+			}
+			cli.Send(todo.Name, listSvr(todo.Name, exe))
+		}
+	case model.JobUpate: // 列出所有，刷新
+		allconf.FromFiles()
+		cli.Send("", allconf.Print())
+	case model.JobSetLevel: // 设置优先级
+		if !ok {
+			cli.Send(todo.Name, unknowProgram+"`"+todo.Name+"`")
+			return
+		}
+		allconf.SetLevel(todo.Name, uint32(toolbox.String2Int32(todo.Exec, 10)))
+		cli.Send(todo.Name, ">>> set "+todo.Name+" start level to "+strconv.FormatUint(uint64(toolbox.String2Int32(todo.Exec, 10)), 10))
 	}
 }
 
@@ -540,14 +502,43 @@ func svrIsRunning(svr *model.ServiceParams) (int, string, bool) {
 	return 0, "", false
 }
 
+func svrIsRunningCached(svr *model.ServiceParams, procCache map[string][]*model.ProcessInfo) (int, string, bool) {
+	if svr.Pid > 0 { // 先尝试命中已记录 pid
+		b, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", svr.Pid))
+		if err == nil {
+			return svr.Pid, fmt.Sprintf("%d\t%s", svr.Pid, strings.ReplaceAll(string(b), "\x00", " ")), true
+		}
+	}
+	name := filepath.Base(svr.Exec)
+	pi, ok := procCache[name]
+	if !ok {
+		pi = model.QueryProcess(name)
+		procCache[name] = pi
+	}
+	for _, p := range pi {
+		found := true
+		for _, parm := range svr.Params {
+			if strings.Contains(parm, "$") {
+				continue
+			}
+			if !strings.Contains(p.CmdLine, parm) {
+				found = false
+				break
+			}
+		}
+		if found {
+			return p.Pid, fmt.Sprintf("%d\t%s", p.Pid, p.CmdLine), true
+		}
+	}
+	return 0, "", false
+}
+
 func startSvrFork(name string, svr *model.ServiceParams) (string, bool) {
 	var spid int
 	var ok bool
 	var ps string
 	if spid, ps, ok = svrIsRunning(svr); ok {
-		if svr.Pid == 0 {
-			svr.Pid = spid
-		}
+		_ = allconf.SetRuntime(name, spid, false)
 		return formatOutput(name, "START", "still running") + "\n" + formatOutput(name, "PS", ps), false // "[START\t" + name + "] is still running\n[PS] " + name + ":\n" + ps, false
 	}
 	var pid int
@@ -604,26 +595,14 @@ func startSvrFork(name string, svr *model.ServiceParams) (string, bool) {
 		Setpgid: true,
 		// Setsid: true,
 	}
-	// 设置日志输出
-	var f *os.File
-	if svr.Log2file {
-		f, _ = os.OpenFile(filepath.Join(logdir, name+".log"), os.O_CREATE|os.O_WRONLY, 0o664)
-	}
-	if f != nil {
-		cmd.Stdout = f
-		cmd.Stderr = f
-	}
 	// 开始执行
 	err = cmd.Start()
 	if err != nil {
 		return formatOutput(name, "START", "error: "+err.Error()+" '"+svr.Exec+"'"), false // "[START\t" + name + "] error: " + err.Error() + " '" + svr.Exec + "'", false
 	}
-	go func(pid int) {
-		cmd.Wait()
-		// syscall.Wait4(pid, nil, 0, nil)
-	}(pid)
-	time.Sleep(time.Second * time.Duration(svr.StartSec))
+	go func() { _ = cmd.Wait() }()
 	pid = cmd.Process.Pid
+	time.Sleep(time.Second * time.Duration(svr.StartSec))
 	if !model.ProcessExist(pid) {
 		spid, _, ok = svrIsRunning(svr)
 		if !ok {
@@ -631,8 +610,7 @@ func startSvrFork(name string, svr *model.ServiceParams) (string, bool) {
 		}
 		pid = spid
 	}
-	svr.ManualStop = false
-	svr.Pid = pid
+	_ = allconf.SetRuntime(name, pid, false)
 	os.WriteFile(filepath.Join(piddir, name+".pid"), fmt.Appendf([]byte{}, "%d", pid), 0o664)
 	return formatOutput(name, "START", "done, PID: "+strconv.Itoa(pid)), true // "[START\t" + name + "]\ndone. PID: " + fmt.Sprintf("%d", pid) + "\n[CMD] " + svr.Exec + " " + strings.Join(svr.Params, " "), true
 }
@@ -652,7 +630,7 @@ func stopSvrFork(name string, svr *model.ServiceParams) string {
 	// 		syscall.Wait4(pid, nil, syscall.WNOHANG, nil)
 	// 	}(pid)
 	// }
-	for i := 0; i < 7; i++ {
+	for range 7 {
 		time.Sleep(time.Millisecond * 500)
 		if !model.ProcessExist(pid) {
 			goto GOON
@@ -660,8 +638,7 @@ func stopSvrFork(name string, svr *model.ServiceParams) string {
 	}
 	syscall.Kill(pid, syscall.SIGKILL)
 GOON:
-	svr.ManualStop = true
-	svr.Pid = 0
+	_ = allconf.SetRuntime(name, 0, true)
 	os.Remove(filepath.Join(piddir, name+".pid"))
 	time.Sleep(time.Millisecond * 200)
 	return formatOutput(name, "STOP", "done, PID: "+fmt.Sprintf("%d", pid)) // "[STOP\t" + name + "]:\ndone, PID: " + fmt.Sprintf("%d", pid)
