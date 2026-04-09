@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"os"
@@ -14,7 +15,9 @@ import (
 )
 
 var (
-	version = "0.0.0"
+	version   = "0.0.0"
+	clilocker = sync.WaitGroup{}
+	cliConn   *net.UnixConn
 )
 
 func init() {
@@ -74,7 +77,7 @@ func main() {
 		}).
 		AddCommand(&gocmd.Command{
 			Name:     "remove",
-			Descript: "remove a program config from extsvr.yaml",
+			Descript: "remove a program config from cnf.d",
 			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
 				send2svr(os.Args[1:]...)
 				return 0
@@ -82,7 +85,7 @@ func main() {
 		}).
 		AddCommand(&gocmd.Command{
 			Name:     "create",
-			Descript: "add a program config to extsvr.yaml",
+			Descript: "add a program config to cnf.d",
 			HelpMsg:  "Usage:\n\t " + os.Args[0] + " create appname execpath param1 param2 ...",
 			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
 				send2svr(os.Args[1:]...)
@@ -126,7 +129,7 @@ Available commands:
 		}).
 		AddCommand(&gocmd.Command{
 			Name:     "update",
-			Descript: "update a program's config to extsvr.yaml",
+			Descript: "reload all program config in cnf.d",
 			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
 				send2svr(os.Args[1:]...)
 				return 0
@@ -140,49 +143,29 @@ Available commands:
 				return 0
 			},
 		}).
-		ExecuteRun()
+		AddCommand(&gocmd.Command{
+			Name:     "shell",
+			Descript: "launch an interactive shell environment.",
+			RunWithExitCode: func(pi *gocmd.ProcInfo) int {
+				shell2svr()
+				return 0
+			},
+		}).
+		ExecuteDefault("shell")
 }
-
-func send2svr(params ...string) {
-	l := len(params)
-	// 先进行一轮参数合法判断
-	switch params[0] {
-	case model.NameStart, model.NameStop, model.NameEnable, model.NameDisable, model.NameRestart:
-		if l < 2 {
-			println("Usage:\n\t " + os.Args[0] + " " + params[0] + " app1 app2 ...")
-			return
-		}
-	case model.NameStatus, model.NameRemove:
-		if l < 2 {
-			println("Usage:\n\t " + os.Args[0] + " " + params[0] + " app")
-			return
-		}
-	case model.NameCreate, model.NameStartLevel:
-		if l < 3 {
-			println("Usage:\n\t " + os.Args[0] + " create appname execpath param1 param2 ...")
-			return
-		}
-	}
+func conn2svr() error {
+	var err error
 	pid := os.Getpid()
-	laddr, _ := net.ResolveUnixAddr("unixgram", fmt.Sprintf(model.CliSock, pid))
-	raddr, _ := net.ResolveUnixAddr("unixgram", model.SvrSock)
 	// 连接unix socket
-	conn, err := net.ListenUnixgram("unixgram", laddr)
+	cliConn, err = net.ListenUnixgram("unixgram", model.CliAddr(pid))
 	if err != nil {
-		println(err.Error())
-		return
+		return err
 	}
-	defer func() {
-		conn.Close()
-	}()
-	locker := sync.WaitGroup{}
-	locker.Add(1)
-	go func() {
-		defer locker.Done()
+	clilocker.Go(func() {
 		buf := make([]byte, 4096)
 		for {
 			// conn.SetReadDeadline(time.Now().Add(time.Second * 2))
-			n, _, err := conn.ReadFromUnix(buf)
+			n, _, err := cliConn.ReadFromUnix(buf)
 			if err != nil {
 				// if strings.Contains(err.Error(), net.ErrClosed.Error()) ||
 				// 	strings.Contains(err.Error(), "connection reset by peer") ||
@@ -190,26 +173,144 @@ func send2svr(params ...string) {
 				// 	return
 				// }
 				println(err.Error())
-				os.Exit(1)
+				// os.Exit(1)
 				return
 			}
 			if s := string(buf[:n]); s == "END" {
-				os.Exit(0)
+				// os.Exit(0)
 				return
 			} else {
-				println(s + "\n")
+				println(s)
 			}
 		}
-	}()
+	})
+	return nil
+}
+
+func send2svr(params ...string) {
+	if !checkParams(params) {
+		return
+	}
+	err := conn2svr()
+	if err != nil {
+		println(err.Error())
+		return
+	}
+	defer cliConn.Close()
+	doJob(params)
+	time.Sleep(time.Millisecond * 200)
+	clo := &model.ToDo{
+		Do: model.JobEnd,
+	}
+	cliConn.WriteToUnix(clo.ToJSON(), model.SvrAddr)
+	clilocker.Wait()
+}
+
+func shell2svr() {
+	printHelp := func() {
+		fmt.Println(`Usage:
+  [command] [args...]
+
+Commands:
+  help                                 show this help
+  exit | quit                          exit interactive shell
+  start app1 app2 ...                  start one or more programs
+  stop app1 app2 ...                   stop one or more programs
+  restart app1 app2 ...                restart one or more programs
+  enable app1 app2 ...                 enable autorun for programs
+  disable app1 app2 ...                disable autorun for programs
+  status app|running|enable|disable|all
+                                       query status
+  list [name|enable|disable|stopped|all]
+                                       list program config/status
+  remove app                           remove one program config
+  create app execpath [param1 ...]     add one program config
+  update                               reload/update config in daemon
+  setlevel app level(1-255)            set start level for one app`)
+	}
+	err := conn2svr()
+	if err != nil {
+		println(err.Error())
+		return
+	}
+	defer cliConn.Close()
+	fmt.Println("ssdctl interactive shell, input 'help' to show commands, 'exit' or 'quit' to quit")
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+		fmt.Print("ssdctl> ")
+		if !scanner.Scan() {
+			break
+		}
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		params := strings.Fields(line)
+		if len(params) == 0 {
+			continue
+		}
+
+		cmd := strings.ToLower(params[0])
+		switch cmd {
+		case "help":
+			printHelp()
+			continue
+		case "exit", "quit":
+			clo := &model.ToDo{Do: model.JobEnd}
+			cliConn.WriteToUnix(clo.ToJSON(), model.SvrAddr)
+			clilocker.Wait()
+			return
+		}
+
+		if !checkParams(params) {
+			continue
+		}
+		doJob(params)
+	}
+
+	if err := scanner.Err(); err != nil {
+		println(err.Error())
+	}
+	clo := &model.ToDo{Do: model.JobEnd}
+	cliConn.WriteToUnix(clo.ToJSON(), model.SvrAddr)
+	clilocker.Wait()
+}
+
+func checkParams(params []string) bool {
+	if len(params) == 0 {
+		return false
+	}
+	cmd := params[0]
+	// 先进行一轮参数合法判断
+	switch cmd {
+	case model.NameStart, model.NameStop, model.NameEnable, model.NameDisable, model.NameRestart:
+		if len(params) < 2 {
+			println("Usage:\n\t " + os.Args[0] + " " + cmd + " app1 app2 ...")
+			return false
+		}
+	case model.NameStatus, model.NameRemove:
+		if len(params) < 2 {
+			println("Usage:\n\t " + os.Args[0] + " " + cmd + " app")
+			return false
+		}
+	case model.NameCreate, model.NameStartLevel:
+		if len(params) < 3 {
+			println("Usage:\n\t " + os.Args[0] + " create appname execpath param1 param2 ...")
+			return false
+		}
+	}
+	return true
+}
+func doJob(params []string) {
 	// 处理命令
-	switch params[0] {
+	switch cmd := params[0]; cmd {
 	case model.NameStart:
 		for _, v := range params[1:] {
 			todo := &model.ToDo{
 				Name: v,
 				Do:   model.JobStart,
 			}
-			conn.WriteToUnix(todo.ToJSON(), raddr)
+			cliConn.WriteToUnix(todo.ToJSON(), model.SvrAddr)
 			time.Sleep(time.Millisecond * 200)
 		}
 	case model.NameStop:
@@ -218,7 +319,7 @@ func send2svr(params ...string) {
 				Name: v,
 				Do:   model.JobStop,
 			}
-			conn.WriteToUnix(todo.ToJSON(), raddr)
+			cliConn.WriteToUnix(todo.ToJSON(), model.SvrAddr)
 			time.Sleep(time.Millisecond * 200)
 		}
 	case model.NameRestart:
@@ -227,18 +328,13 @@ func send2svr(params ...string) {
 				Name: v,
 				Do:   model.JobStop,
 			}
-			conn.WriteToUnix(todo.ToJSON(), raddr)
+			cliConn.WriteToUnix(todo.ToJSON(), model.SvrAddr)
 			time.Sleep(time.Millisecond * 200)
 			todo = &model.ToDo{
 				Name: v,
 				Do:   model.JobStart,
 			}
-			conn.WriteToUnix(todo.ToJSON(), raddr)
-			// todo := &model.ToDo{
-			// 	Name: v,
-			// 	Do:   model.JobRestart,
-			// }
-			// conn.Write(todo.ToJSON())
+			cliConn.WriteToUnix(todo.ToJSON(), model.SvrAddr)
 			time.Sleep(time.Millisecond * 200)
 		}
 	case model.NameEnable:
@@ -247,7 +343,7 @@ func send2svr(params ...string) {
 				Name: v,
 				Do:   model.JobEnable,
 			}
-			conn.WriteToUnix(todo.ToJSON(), raddr)
+			cliConn.WriteToUnix(todo.ToJSON(), model.SvrAddr)
 			time.Sleep(time.Millisecond * 200)
 		}
 	case model.NameDisable:
@@ -256,7 +352,7 @@ func send2svr(params ...string) {
 				Name: v,
 				Do:   model.JobDisable,
 			}
-			conn.WriteToUnix(todo.ToJSON(), raddr)
+			cliConn.WriteToUnix(todo.ToJSON(), model.SvrAddr)
 			time.Sleep(time.Millisecond * 200)
 		}
 	case model.NameStatus:
@@ -264,14 +360,14 @@ func send2svr(params ...string) {
 			Name: params[1],
 			Do:   model.JobStatus,
 		}
-		conn.WriteToUnix(todo.ToJSON(), raddr)
+		cliConn.WriteToUnix(todo.ToJSON(), model.SvrAddr)
 		time.Sleep(time.Millisecond * 200)
 	case model.NameRemove:
 		todo := &model.ToDo{
 			Name: params[1],
 			Do:   model.JobRemove,
 		}
-		conn.WriteToUnix(todo.ToJSON(), raddr)
+		cliConn.WriteToUnix(todo.ToJSON(), model.SvrAddr)
 		time.Sleep(time.Millisecond * 200)
 	case model.NameCreate:
 		todo := &model.ToDo{
@@ -280,7 +376,7 @@ func send2svr(params ...string) {
 			Exec:   params[2],
 			Params: params[3:],
 		}
-		conn.WriteToUnix(todo.ToJSON(), raddr)
+		cliConn.WriteToUnix(todo.ToJSON(), model.SvrAddr)
 		time.Sleep(time.Millisecond * 200)
 	case model.NameList:
 		var todo *model.ToDo
@@ -294,19 +390,19 @@ func send2svr(params ...string) {
 				Do: model.JobList,
 			}
 		}
-		conn.WriteToUnix(todo.ToJSON(), raddr)
+		cliConn.WriteToUnix(todo.ToJSON(), model.SvrAddr)
 		time.Sleep(time.Millisecond * 200)
 	case model.NameUpdate:
 		todo := &model.ToDo{
 			Do: model.JobUpate,
 		}
-		conn.WriteToUnix(todo.ToJSON(), raddr)
+		cliConn.WriteToUnix(todo.ToJSON(), model.SvrAddr)
 		time.Sleep(time.Millisecond * 200)
 	case model.NameShutdown:
 		todo := &model.ToDo{
 			Do: model.JobShutdown,
 		}
-		conn.WriteToUnix(todo.ToJSON(), raddr)
+		cliConn.WriteToUnix(todo.ToJSON(), model.SvrAddr)
 		time.Sleep(time.Millisecond * 200)
 	case model.NameStartLevel:
 		todo := &model.ToDo{
@@ -314,13 +410,9 @@ func send2svr(params ...string) {
 			Do:   model.JobSetLevel,
 			Exec: params[2],
 		}
-		conn.WriteToUnix(todo.ToJSON(), raddr)
+		cliConn.WriteToUnix(todo.ToJSON(), model.SvrAddr)
 		time.Sleep(time.Millisecond * 200)
+	default:
+		fmt.Printf("unknown command: %s, input 'help' to show commands\n", cmd)
 	}
-	time.Sleep(time.Millisecond * 200)
-	clo := &model.ToDo{
-		Do: model.JobEnd,
-	}
-	conn.WriteToUnix(clo.ToJSON(), raddr)
-	locker.Wait()
 }

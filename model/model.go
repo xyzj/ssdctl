@@ -2,11 +2,20 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
 )
 
 const (
 	SvrSock = "@ssdctld.sock"
 	CliSock = "@ssdctl_%d.sock"
+)
+
+var (
+	SvrAddr = &net.UnixAddr{Name: SvrSock, Net: "unixgram"}
+	CliAddr = func(pid int) *net.UnixAddr {
+		return &net.UnixAddr{Name: fmt.Sprintf(CliSock, pid), Net: "unixgram"}
+	}
 )
 
 type ToDo struct {

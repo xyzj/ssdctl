@@ -219,7 +219,7 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 	// 开始监听
 	loopfunc.LoopFunc(func(params ...any) {
 		var err error
-		uln, err = net.ListenUnixgram("unixgram", &net.UnixAddr{Name: model.SvrSock, Net: "unixgram"})
+		uln, err = net.ListenUnixgram("unixgram", model.SvrAddr)
 		if err != nil {
 			stdlog.Error("listen from unixgram error: " + err.Error())
 			app.Exit(1)
