@@ -193,10 +193,12 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 	allconf.FromFiles()
 
 	// 后台处理
+	td := time.Second * time.Duration(min(max(toolbox.String2Int(os.Getenv("SSDCTLD_CHECK_SECONDS"), 10), 60), 600))
+	t := time.NewTimer(td)
+	t.Stop()
 	if !*nokeepalive {
 		go loopfunc.LoopFunc(func(params ...any) {
-			td := time.Second * time.Duration(min(max(toolbox.String2Int(os.Getenv("SSDCTLD_CHECK_SECONDS"), 10), 60), 600))
-			t := time.NewTimer(td)
+			t.Reset(td)
 			for range t.C {
 				procCache := map[string][]*model.ProcessInfo{}
 				// 检查所有enable==true && manualStop==false的服务状态
@@ -233,10 +235,12 @@ in this case, $pubip will be replace to the result of 'curl -s 4.ipw.cn'`,
 				stdlog.Error("read from unix socket error: " + err.Error())
 				continue
 			}
+			t.Stop()
 			recv(&unixClient{
 				conn: cli,
 				buf:  buf[:n],
 			})
+			t.Reset(td)
 		}
 	}, "main proc", nil) // stdlog.DefaultWriter())
 }
