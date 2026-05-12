@@ -20,10 +20,6 @@ var (
 	cliConn   *net.UnixConn
 )
 
-func init() {
-	os.Setenv(strings.ToUpper(gocmd.GetExecNameWithoutExt())+"_NOT_PARSE_FLAG", "1")
-}
-
 // 接收消息格式： fmt.Sprintf("%d|%s|%s|%s|",do,name,exec,params)
 // name: 服务名称
 // do: 固定1字符 0-关闭链接，1-启动，2-停止，3-启用，4-停用，5-查询状态，6-删除服务配置，7-新增服务配置，9-列出所有配置，10-重启指定服务，98-刷新配置
@@ -151,7 +147,7 @@ Available commands:
 				return 0
 			},
 		}).
-		ExecuteDefault("shell")
+		ExecuteNotParseFlag("shell")
 }
 func conn2svr() error {
 	var err error
